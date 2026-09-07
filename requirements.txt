@@ -5,4 +5,5 @@ numpy
 scikit-learn
 xgboost
 joblib
-openai
+google-genai
+python-dotenv
