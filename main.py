@@ -2,11 +2,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-
+import json
+import requests
 from pathlib import Path
 import os
-import json
-
+import ee
 from dotenv import load_dotenv
 from google import genai
 
@@ -14,31 +14,16 @@ import pandas as pd
 import numpy as np
 import joblib
 import xgboost as xgb
-
+from sentinel2 import (
+    initialize_earth_engine,
+    generate_manganese_map
+)
 
 # =========================================================
-# PATH CONFIGURATION
+# PATHS
 # =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
-
-DATA_PATH = BASE_DIR / "final_manganese_ml_dataset.csv"
-
-EQUIPMENT_MODEL_PATH = (
-    BASE_DIR / "equipment_risk_model.pkl"
-)
-
-SHORTFALL_MODEL_PATH = (
-    BASE_DIR / "production_shortfall_xgboost_model.json"
-)
-
-METADATA_PATH = (
-    BASE_DIR / "production_shortfall_model_metadata.pkl"
-)
-
-HTML_FILE_PATH = (
-    BASE_DIR / "my_gpt.html"
-)
 
 
 # =========================================================
@@ -49,62 +34,76 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-gemini_client = None
+gemini_client = (
+    genai.Client(api_key=GEMINI_API_KEY)
+    if GEMINI_API_KEY
+    else None
+)
 
-if GEMINI_API_KEY:
-
-    try:
-        gemini_client = genai.Client(
-            api_key=GEMINI_API_KEY
-        )
-
-        print("✓ Gemini client initialized successfully")
-
-    except Exception as e:
-
-        print("✗ Gemini initialization error:")
-        print(e)
-
-else:
-
-    print("⚠ GEMINI_API_KEY not found")
-
+print("Gemini API key found:", bool(GEMINI_API_KEY))
+print("Gemini client initialized:", gemini_client is not None)
 
 # =========================================================
-# FASTAPI APPLICATION
+# INITIALIZE GOOGLE EARTH ENGINE
+# =========================================================
+
+EARTH_ENGINE_AVAILABLE = initialize_earth_engine()
+
+print(
+    "Earth Engine available:",
+    EARTH_ENGINE_AVAILABLE
+)
+# =========================================================
+# FASTAPI APP
 # =========================================================
 
 app = FastAPI(
-    title="GeoMn Mining Intelligence API",
-    description="""
-    Hybrid AI/ML based Manganese Mining Risk Prediction System.
-
-    ML Models:
-    - Equipment Breakdown Risk Model
-    - Production Shortfall XGBoost Model
-
-    Generative AI:
-    - Google Gemini for intelligent operational recommendations
-    """
+    title="GeoMn Mining Risk API",
+    description="AI/ML based Manganese Mining Risk Prediction System"
 )
 
 
 # =========================================================
-# CORS CONFIGURATION
+# CORS
 # =========================================================
 
 app.add_middleware(
-
     CORSMiddleware,
-
     allow_origins=["*"],
-
     allow_credentials=True,
-
     allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    allow_headers=["*"]
 
+# =========================================================
+# FILE PATHS
+# =========================================================
+
+DATA_PATH = (
+    BASE_DIR
+    / "data"
+    / "final_manganese_ml_dataset.csv"
+)
+
+EQUIPMENT_MODEL_PATH = (
+    BASE_DIR
+    / "equipment_risk_model.pkl"
+)
+
+SHORTFALL_MODEL_PATH = (
+    BASE_DIR
+    / "production_shortfall_xgboost_model.json"
+)
+
+METADATA_PATH = (
+    BASE_DIR
+    / "production_shortfall_model_metadata.pkl"
+)
+
+HTML_FILE_PATH = (
+    BASE_DIR
+    / "my_gpt.html"
 )
 
 
@@ -113,67 +112,42 @@ app.add_middleware(
 # =========================================================
 
 try:
-
     df = pd.read_csv(DATA_PATH)
-
     print("✓ Historical dataset loaded successfully")
 
-    print("Dataset rows:", len(df))
-
 except Exception as e:
-
     df = None
-
     print("✗ DATASET ERROR:")
-
     print(e)
 
 
 # =========================================================
-# LOAD EQUIPMENT RISK MODEL
+# LOAD EQUIPMENT MODEL
 # =========================================================
 
 try:
-
-    equipment_model = joblib.load(
-        EQUIPMENT_MODEL_PATH
-    )
-
-    print(
-        "✓ Equipment risk model loaded successfully"
-    )
+    equipment_model = joblib.load(EQUIPMENT_MODEL_PATH)
+    print("✓ Equipment risk model loaded successfully")
 
 except Exception as e:
-
     equipment_model = None
-
     print("✗ EQUIPMENT MODEL ERROR:")
-
     print(e)
 
 
 # =========================================================
-# LOAD PRODUCTION SHORTFALL MODEL
+# LOAD SHORTFALL XGBOOST MODEL
 # =========================================================
 
 try:
-
     shortfall_model = xgb.XGBClassifier()
+    shortfall_model.load_model(SHORTFALL_MODEL_PATH)
 
-    shortfall_model.load_model(
-        SHORTFALL_MODEL_PATH
-    )
-
-    print(
-        "✓ Production shortfall XGBoost model loaded successfully"
-    )
+    print("✓ Production shortfall XGBoost model loaded successfully")
 
 except Exception as e:
-
     shortfall_model = None
-
     print("✗ SHORTFALL MODEL ERROR:")
-
     print(e)
 
 
@@ -182,982 +156,776 @@ except Exception as e:
 # =========================================================
 
 try:
-
-    metadata = joblib.load(
-        METADATA_PATH
-    )
-
-    print(
-        "✓ Model metadata loaded successfully"
-    )
+    metadata = joblib.load(METADATA_PATH)
+    print("✓ Model metadata loaded successfully")
 
 except Exception as e:
-
     metadata = None
-
     print("✗ METADATA ERROR:")
-
     print(e)
 
 
 # =========================================================
-# REQUEST INPUT MODEL
+# REQUEST MODEL
 # =========================================================
 
 class PredictionInput(BaseModel):
-
     state: str
-
     district: str
-
     weather_condition: str
-
+    equipment_mode: str = "Auto"
     production_tonnes: float | None = None
-
-
 # =========================================================
-# WEATHER SCENARIO GENERATOR
+# SENTINEL MAP REQUEST MODEL
+# =========================================================
+
+class MapRequest(BaseModel):
+
+    west: float
+
+    south: float
+
+    east: float
+
+    north: float
+# =========================================================
+# LIVE WEATHER FROM OPEN-METEO
+# =========================================================
+
+def get_live_weather(state, district):
+
+    try:
+
+        # -------------------------------------------------
+        # STEP 1: Convert district name to coordinates
+        # -------------------------------------------------
+
+        geocode_url = "https://geocoding-api.open-meteo.com/v1/search"
+
+        geocode_params = {
+            "name": f"{district}, {state}",
+            "count": 10,
+            "language": "en",
+            "format": "json",
+            "countryCode": "IN"
+        }
+
+        geocode_response = requests.get(
+            geocode_url,
+            params=geocode_params,
+            timeout=4
+        )
+
+        geocode_response.raise_for_status()
+
+        geocode_data = geocode_response.json()
+
+        results = geocode_data.get("results", [])
+
+        if not results:
+            raise Exception(
+                f"Location not found: {district}, {state}"
+            )
+
+        location = results[0]
+
+        latitude = float(location["latitude"])
+        longitude = float(location["longitude"])
+
+        # -------------------------------------------------
+        # STEP 2: Get live weather
+        # -------------------------------------------------
+
+        weather_url = "https://api.open-meteo.com/v1/forecast"
+
+        weather_params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "current": (
+                "temperature_2m,"
+                "relative_humidity_2m,"
+                "precipitation"
+            ),
+            "timezone": "auto"
+        }
+
+        weather_response = requests.get(
+            weather_url,
+            params=weather_params,
+            timeout=4
+        )
+
+        weather_response.raise_for_status()
+
+        weather_data = weather_response.json()
+
+        current = weather_data.get("current", {})
+
+        temperature = float(
+            current.get("temperature_2m", 0)
+        )
+
+        humidity = float(
+            current.get("relative_humidity_2m", 0)
+        )
+
+        rainfall = float(
+            current.get("precipitation", 0)
+        )
+
+        print(
+            f"✓ Live weather: "
+            f"{district}, {state} | "
+            f"Temperature={temperature}°C | "
+            f"Rainfall={rainfall} mm | "
+            f"Humidity={humidity}%"
+        )
+
+        return (
+            temperature,
+            rainfall,
+            humidity
+        )
+
+    except Exception as e:
+
+        print("✗ LIVE WEATHER ERROR:")
+        print(e)
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to fetch live weather: {str(e)}"
+        )
+# =========================================================
+# WEATHER SCENARIO FUNCTION
 # =========================================================
 
 def get_weather_values(
     district_data,
-    weather_condition
+    weather_condition,
+    state=None,
+    district=None
 ):
 
-    weather_condition = (
-        weather_condition
-        .lower()
-        .strip()
-    )
+    weather_condition = weather_condition.lower().strip()
+    if weather_condition == "auto":
 
+        return get_live_weather(
+            state,
+            district
+        )
 
     avg_temperature = float(
-
-        district_data[
-            "Avg_Temperature_C"
-        ].mean()
-
+        district_data["Avg_Temperature_C"].mean()
     )
-
 
     avg_rainfall = float(
-
-        district_data[
-            "Total_Rainfall_mm"
-        ].mean()
-
+        district_data["Total_Rainfall_mm"].mean()
     )
-
 
     avg_humidity = float(
-
-        district_data[
-            "Avg_Humidity_pct"
-        ].mean()
-
+        district_data["Avg_Humidity_pct"].mean()
     )
+    if weather_condition == "auto":
 
+        try:
+            return get_live_weather(
+                state,
+                district
+            )
 
-    # GOOD WEATHER
+        except Exception:
+            print(
+                "⚠ Live weather unavailable."
+                " Using offline district data."
+            )
+
+            return (
+                avg_temperature,
+                avg_rainfall,
+                avg_humidity
+            )
+
     if weather_condition == "good":
 
         temperature = float(
-
-            district_data[
-                "Avg_Temperature_C"
-            ].quantile(0.25)
-
+            district_data["Avg_Temperature_C"].quantile(0.25)
         )
-
 
         rainfall = float(
-
-            district_data[
-                "Total_Rainfall_mm"
-            ].quantile(0.25)
-
+            district_data["Total_Rainfall_mm"].quantile(0.25)
         )
-
 
         humidity = float(
-
-            district_data[
-                "Avg_Humidity_pct"
-            ].quantile(0.25)
-
+            district_data["Avg_Humidity_pct"].quantile(0.25)
         )
 
 
-    # BAD WEATHER
     elif weather_condition == "bad":
 
         temperature = float(
-
-            district_data[
-                "Avg_Temperature_C"
-            ].quantile(0.75)
-
+            district_data["Avg_Temperature_C"].quantile(0.75)
         )
-
 
         rainfall = float(
-
-            district_data[
-                "Total_Rainfall_mm"
-            ].quantile(0.75)
-
+            district_data["Total_Rainfall_mm"].quantile(0.75)
         )
-
 
         humidity = float(
-
-            district_data[
-                "Avg_Humidity_pct"
-            ].quantile(0.75)
-
+            district_data["Avg_Humidity_pct"].quantile(0.75)
         )
 
 
-    # WORST WEATHER
     elif weather_condition == "worst":
 
         temperature = float(
-
-            district_data[
-                "Avg_Temperature_C"
-            ].max()
-
+            district_data["Avg_Temperature_C"].max()
         )
-
 
         rainfall = float(
-
-            district_data[
-                "Total_Rainfall_mm"
-            ].max()
-
+            district_data["Total_Rainfall_mm"].max()
         )
-
 
         humidity = float(
-
-            district_data[
-                "Avg_Humidity_pct"
-            ].max()
-
+            district_data["Avg_Humidity_pct"].max()
         )
 
 
-    # NORMAL WEATHER
     else:
 
         temperature = avg_temperature
-
         rainfall = avg_rainfall
-
         humidity = avg_humidity
 
 
-    return (
-
-        temperature,
-
-        rainfall,
-
-        humidity
-
-    )
+    return temperature, rainfall, humidity
 
 
 # =========================================================
-# STRESS CALCULATION ENGINE
+# CALCULATE STRESS
 # =========================================================
 
 def calculate_stress(
-
     district_data,
-
     production,
-
     temperature,
-
     rainfall,
-
     humidity
-
 ):
 
-
-    # -------------------------
-    # PRODUCTION STRESS
-    # -------------------------
-
     district_avg_production = float(
-
-        district_data[
-            "Production_Tonnes"
-        ].mean()
-
+        district_data["Production_Tonnes"].mean()
     )
-
 
     production_stress = (
-
-        district_avg_production
-        - production
-
+        district_avg_production - production
     ) / district_avg_production
 
-
     production_stress = float(
-
-        np.clip(
-            production_stress,
-            0,
-            1
-        )
-
+        np.clip(production_stress, 0, 1)
     )
 
-
-    # -------------------------
-    # TEMPERATURE STRESS
-    # -------------------------
 
     temp_mean = float(
-
-        df[
-            "Avg_Temperature_C"
-        ].mean()
-
+        df["Avg_Temperature_C"].mean()
     )
-
 
     temp_std = float(
-
-        df[
-            "Avg_Temperature_C"
-        ].std()
-
+        df["Avg_Temperature_C"].std()
     )
-
-
-    if temp_std == 0:
-
-        temp_std = 1
-
 
     temperature_stress = abs(
-
-        temperature
-        - temp_mean
-
-    ) / (
-
-        2 * temp_std
-
-    )
-
+        temperature - temp_mean
+    ) / (2 * temp_std)
 
     temperature_stress = float(
-
-        np.clip(
-            temperature_stress,
-            0,
-            1
-        )
-
+        np.clip(temperature_stress, 0, 1)
     )
 
-
-    # -------------------------
-    # RAINFALL STRESS
-    # -------------------------
 
     rain_min = float(
-
-        df[
-            "Total_Rainfall_mm"
-        ].min()
-
+        df["Total_Rainfall_mm"].min()
     )
-
 
     rain_max = float(
-
-        df[
-            "Total_Rainfall_mm"
-        ].max()
-
+        df["Total_Rainfall_mm"].max()
     )
-
-
-    rain_range = rain_max - rain_min
-
-
-    if rain_range == 0:
-
-        rain_range = 1
-
 
     rainfall_stress = (
-
-        rainfall
-        - rain_min
-
-    ) / rain_range
-
+        rainfall - rain_min
+    ) / (rain_max - rain_min)
 
     rainfall_stress = float(
-
-        np.clip(
-            rainfall_stress,
-            0,
-            1
-        )
-
+        np.clip(rainfall_stress, 0, 1)
     )
 
-
-    # -------------------------
-    # HUMIDITY STRESS
-    # -------------------------
 
     humidity_min = float(
-
-        df[
-            "Avg_Humidity_pct"
-        ].min()
-
+        df["Avg_Humidity_pct"].min()
     )
-
 
     humidity_max = float(
-
-        df[
-            "Avg_Humidity_pct"
-        ].max()
-
+        df["Avg_Humidity_pct"].max()
     )
-
-
-    humidity_range = (
-
-        humidity_max
-        - humidity_min
-
-    )
-
-
-    if humidity_range == 0:
-
-        humidity_range = 1
-
 
     humidity_stress = (
-
-        humidity
-        - humidity_min
-
-    ) / humidity_range
-
+        humidity - humidity_min
+    ) / (humidity_max - humidity_min)
 
     humidity_stress = float(
-
-        np.clip(
-            humidity_stress,
-            0,
-            1
-        )
-
+        np.clip(humidity_stress, 0, 1)
     )
 
 
-    # -------------------------
-    # OVERALL WEATHER STRESS
-    # -------------------------
-
     weather_stress = (
-
         temperature_stress
         + rainfall_stress
         + humidity_stress
-
     ) / 3
 
 
     return {
 
         "production_stress":
-            round(
-                production_stress,
-                3
-            ),
+            round(production_stress, 3),
 
         "temperature_stress":
-            round(
-                temperature_stress,
-                3
-            ),
+            round(temperature_stress, 3),
 
         "rainfall_stress":
-            round(
-                rainfall_stress,
-                3
-            ),
+            round(rainfall_stress, 3),
 
         "humidity_stress":
-            round(
-                humidity_stress,
-                3
-            ),
+            round(humidity_stress, 3),
 
         "weather_stress":
-            round(
-                weather_stress,
-                3
-            )
-
+            round(weather_stress, 3)
     }
 
 
 # =========================================================
-# LOCAL RULE BASED AI FALLBACK
+# LOCAL AI RECOMMENDATION ENGINE
 # =========================================================
 
-def generate_local_recommendations(
+# =========================================================
+# FIXED: WEATHER SCENARIO FUNCTION
+# =========================================================
 
-    production_stress,
-
-    temperature_stress,
-
-    rainfall_stress,
-
-    humidity_stress,
-
-    weather_stress,
-
-    equipment_risk,
-
-    shortfall_risk
-
+def get_weather_values(
+    district_data,
+    weather_condition,
+    state=None,
+    district=None
 ):
+    weather_condition = weather_condition.lower().strip()
+
+    avg_temperature = float(district_data["Avg_Temperature_C"].mean())
+    avg_rainfall = float(district_data["Total_Rainfall_mm"].mean())
+    avg_humidity = float(district_data["Avg_Humidity_pct"].mean())
+
+    if weather_condition == "auto":
+        try:
+            return get_live_weather(state, district)
+        except Exception:
+            print("⚠ Live weather unavailable. Using offline district data.")
+            return avg_temperature, avg_rainfall, avg_humidity
+
+    if weather_condition == "good":
+        return (
+            float(district_data["Avg_Temperature_C"].quantile(0.25)),
+            float(district_data["Total_Rainfall_mm"].quantile(0.25)),
+            float(district_data["Avg_Humidity_pct"].quantile(0.25))
+        )
+    elif weather_condition == "bad":
+        return (
+            float(district_data["Avg_Temperature_C"].quantile(0.75)),
+            float(district_data["Total_Rainfall_mm"].quantile(0.75)),
+            float(district_data["Avg_Humidity_pct"].quantile(0.75))
+        )
+    elif weather_condition == "worst":
+        return (
+            float(district_data["Avg_Temperature_C"].max()),
+            float(district_data["Total_Rainfall_mm"].max()),
+            float(district_data["Avg_Humidity_pct"].max())
+        )
+
+    return avg_temperature, avg_rainfall, avg_humidity
 
 
+# =========================================================
+# DYNAMIC MULTI-TIER LOCAL AI RECOMMENDATION ENGINE
+# =========================================================
+
+def generate_ai_recommendations(
+    production_stress,
+    temperature_stress,
+    rainfall_stress,
+    humidity_stress,
+    weather_stress,
+    equipment_risk,
+    shortfall_risk
+):
     recommendations = []
-
     risk_factors = []
 
-
+    # Map all stress parameters with numerical values
     factors = {
-
-        "Production Performance":
-            production_stress,
-
-        "Temperature Conditions":
-            temperature_stress,
-
-        "Rainfall Conditions":
-            rainfall_stress,
-
-        "Humidity Conditions":
-            humidity_stress,
-
-        "Overall Weather Conditions":
-            weather_stress,
-
-        "Equipment Reliability":
-            equipment_risk / 100
-
+        "Production Performance": production_stress,
+        "Temperature Conditions": temperature_stress,
+        "Rainfall Conditions": rainfall_stress,
+        "Humidity Conditions": humidity_stress,
+        "Overall Weather Stress": weather_stress,
+        "Equipment Reliability": equipment_risk / 100.0
     }
 
-
+    # Sort factors by severity
     sorted_factors = sorted(
-
         factors.items(),
-
         key=lambda x: x[1],
-
         reverse=True
-
     )
-
-
-    # TOP 3 RISK FACTORS
 
     for factor, value in sorted_factors[:3]:
-
         risk_factors.append({
-
-            "factor":
-                factor,
-
-            "severity_score":
-                round(
-                    float(value),
-                    3
-                )
-
+            "factor": factor,
+            "severity_score": round(float(value), 3)
         })
 
+    # =========================================================
+    # 1. PRODUCTION STRESS (5 GRANULAR TIERS)
+    # =========================================================
+    prod_pct = int(production_stress * 100)
 
-    # PRODUCTION
-
-    if production_stress >= 0.4:
-
+    if production_stress >= 0.75:
         recommendations.append({
-
-            "priority":
-                "High",
-
-            "issue_detected":
-                "Production Performance",
-
+            "priority": "Critical",
+            "title": "Severe Production Deficit Emergency",
+            "issue_detected": "Critical Production Drop",
+            "why_it_matters": f"Production stress reached a critical level of {prod_pct}%. Tonnage is drastically below target baseline.",
             "recommended_actions": [
-
-                "Identify operational bottlenecks.",
-
-                "Review production scheduling.",
-
-                "Improve transportation and material handling."
-
+                "Halt non-essential operations and perform an immediate throughput audit.",
+                "Deploy emergency haul fleet capacity to resolve primary pit bottlenecks.",
+                "Re-evaluate daily target allocations with plant managers immediately."
             ]
-
         })
-
-
-    elif production_stress >= 0.2:
-
+    elif production_stress >= 0.50:
         recommendations.append({
-
-            "priority":
-                "Medium",
-
-            "issue_detected":
-                "Production Monitoring",
-
+            "priority": "High",
+            "title": "Substantial Yield Reduction",
+            "issue_detected": "High Production Stress",
+            "why_it_matters": f"Production stress is at {prod_pct}%, indicating significant lagging in pit-to-surface transport.",
             "recommended_actions": [
-
-                "Monitor daily production targets.",
-
-                "Improve shift planning."
-
+                "Audit primary crusher throughput to identify feed rate delays.",
+                "Optimize haul truck dispatch cycles and minimize idle queuing times.",
+                "Adjust shift handovers to eliminate operational downtime gaps."
             ]
-
         })
-
-
-    # EQUIPMENT
-
-    if equipment_risk >= 20:
-
+    elif production_stress >= 0.30:
         recommendations.append({
-
-            "priority":
-                "High",
-
-            "issue_detected":
-                "Equipment Reliability",
-
+            "priority": "Medium-High",
+            "title": "Moderate Production Shortfall",
+            "issue_detected": "Moderate Output Variance",
+            "why_it_matters": f"Production stress measured at {prod_pct}%. Tonnage is falling behind daily schedule quotas.",
             "recommended_actions": [
-
-                "Prioritize preventive maintenance.",
-
-                "Inspect critical machines.",
-
-                "Increase equipment monitoring."
-
+                "Increase monitoring of hourly excavator loading targets.",
+                "Streamline internal pit traffic to prevent transport delays."
             ]
-
         })
-
-
-    elif equipment_risk >= 10:
-
+    elif production_stress >= 0.15:
         recommendations.append({
-
-            "priority":
-                "Medium",
-
-            "issue_detected":
-                "Equipment Monitoring",
-
+            "priority": "Medium",
+            "title": "Minor Tonnage Variance",
+            "issue_detected": "Slight Production Deficit",
+            "why_it_matters": f"Production stress is slightly elevated at {prod_pct}%. Small operational friction detected.",
             "recommended_actions": [
-
-                "Schedule routine maintenance.",
-
-                "Inspect high-use equipment."
-
+                "Track shift-wise output targets against weekly averages.",
+                "Ensure maximum machine availability during peak operation hours."
             ]
-
         })
 
+    # =========================================================
+    # 2. HUMIDITY STRESS (4 TIERS)
+    # =========================================================
+    hum_pct = int(humidity_stress * 100)
 
-    # TEMPERATURE
-
-    if temperature_stress >= 0.6:
-
+    if humidity_stress >= 0.80:
         recommendations.append({
-
-            "priority":
-                "High",
-
-            "issue_detected":
-                "Temperature Stress",
-
+            "priority": "Critical",
+            "title": "Extreme Humidity & Saturation Protocol",
+            "issue_detected": "Severe Moisture Hazard",
+            "why_it_matters": f"Humidity stress reached {hum_pct}%. Severe moisture risk for high-voltage systems and screening units.",
             "recommended_actions": [
-
-                "Monitor equipment temperature.",
-
-                "Plan heat-sensitive work carefully.",
-
-                "Ensure adequate cooling."
-
+                "Enforce IP65 electrical enclosure seals and deploy industrial desiccants.",
+                "Run anti-clogging routines on damp ore screening decks immediately.",
+                "Inspect motor insulation resistance across all dewatering pumps."
             ]
-
         })
-
-
-    # RAINFALL
-
-    if rainfall_stress >= 0.6:
-
+    elif humidity_stress >= 0.55:
         recommendations.append({
-
-            "priority":
-                "High",
-
-            "issue_detected":
-                "Heavy Rainfall Risk",
-
+            "priority": "High",
+            "title": "High Moisture & Material Clogging Risk",
+            "issue_detected": "Elevated Humidity Level",
+            "why_it_matters": f"Humidity stress measured at {hum_pct}%, creating potential wet ore blinding on conveyor belts.",
             "recommended_actions": [
-
-                "Improve mine drainage.",
-
-                "Monitor haul roads.",
-
-                "Prepare alternate operational plans."
-
+                "Inspect conveyor transfer chutes regularly for sticky manganese buildup.",
+                "Check moisture traps on pneumatic lines and air compressors."
             ]
-
         })
-
-
-    # HUMIDITY
-
-    if humidity_stress >= 0.6:
-
+    elif humidity_stress >= 0.35:
         recommendations.append({
-
-            "priority":
-                "Medium",
-
-            "issue_detected":
-                "High Humidity",
-
+            "priority": "Medium",
+            "title": "Moderate Humidity Dampness",
+            "issue_detected": "Moderate Environmental Moisture",
+            "why_it_matters": f"Humidity stress is at {hum_pct}%. Minor moisture impact expected on outdoor machinery.",
             "recommended_actions": [
-
-                "Protect electrical systems.",
-
-                "Inspect for corrosion.",
-
-                "Increase environmental monitoring."
-
+                "Conduct routine checks on exposed electrical control boxes.",
+                "Apply anti-corrosive lubricants to exposed moving components."
             ]
-
         })
 
+    # =========================================================
+    # 3. RAINFALL STRESS (4 TIERS)
+    # =========================================================
+    rain_pct = int(rainfall_stress * 100)
 
-    # WEATHER
-
-    if weather_stress >= 0.7:
-
+    if rainfall_stress >= 0.75:
         recommendations.append({
-
-            "priority":
-                "High",
-
-            "issue_detected":
-                "Adverse Weather",
-
+            "priority": "Critical",
+            "title": "Flash Inundation & Slope Hazard",
+            "issue_detected": "Extreme Rainfall Impact",
+            "why_it_matters": f"Rainfall stress index is at {rain_pct}%. High risk of pit floor flooding and bench instability.",
             "recommended_actions": [
-
-                "Use weather-based production planning.",
-
-                "Prepare alternative schedules.",
-
-                "Increase operational monitoring."
-
+                "Activate main stage high-volume pit dewatering pumps.",
+                "Restrict heavy haulage along unpaved pit ramps and slippery inclines.",
+                "Monitor slope stability sensors along high pit walls."
             ]
-
+        })
+    elif rainfall_stress >= 0.45:
+        recommendations.append({
+            "priority": "High",
+            "title": "Haul Road Degradation Risk",
+            "issue_detected": "Substantial Rainfall",
+            "why_it_matters": f"Rainfall stress measured at {rain_pct}%, causing erosion along haul routes.",
+            "recommended_actions": [
+                "Apply coarse gravel to soft patches on primary haul roads.",
+                "Clear roadside drainage ditches to clear runoff water rapidly."
+            ]
+        })
+    elif rainfall_stress >= 0.20:
+        recommendations.append({
+            "priority": "Medium",
+            "title": "Light Precipitation Impact",
+            "issue_detected": "Low to Moderate Rain",
+            "why_it_matters": f"Rainfall stress index is {rain_pct}%. Surface slipperiness may slightly slow transport.",
+            "recommended_actions": [
+                "Enforce strict speed limits for loaded haul trucks."
+            ]
         })
 
+    # =========================================================
+    # 4. TEMPERATURE STRESS (4 TIERS)
+    # =========================================================
+    temp_pct = int(temperature_stress * 100)
 
-    # LOW RISK
+    if temperature_stress >= 0.75:
+        recommendations.append({
+            "priority": "High",
+            "title": "Extreme Thermal Overheating Risk",
+            "issue_detected": "Severe Temperature Stress",
+            "why_it_matters": f"Temperature stress reached {temp_pct}%. Heavy engine overheating risk for excavators.",
+            "recommended_actions": [
+                "Inspect radiator airflow and coolant levels during shift changes.",
+                "Schedule high-demand earthmoving during morning hours."
+            ]
+        })
+    elif temperature_stress >= 0.45:
+        recommendations.append({
+            "priority": "Medium",
+            "title": "Elevated Engine Temperature",
+            "issue_detected": "Moderate Heat Stress",
+            "why_it_matters": f"Temperature stress measured at {temp_pct}%. Engine oil breakdown rates increase.",
+            "recommended_actions": [
+                "Monitor hydraulic fluid temperature gauges continuously."
+            ]
+        })
 
+    # =========================================================
+    # 5. EQUIPMENT RISK (4 TIERS)
+    # =========================================================
+    if equipment_risk >= 60.0:
+        recommendations.append({
+            "priority": "Critical",
+            "title": "Imminent Breakdown Warning",
+            "issue_detected": "Critical Equipment Failure Risk",
+            "why_it_matters": f"Predicted breakdown risk is at {round(equipment_risk, 1)}%. High risk of unplanned line stoppage.",
+            "recommended_actions": [
+                "Pull high-risk machinery for emergency diagnostic inspection.",
+                "Prepare standby units for rapid field replacement."
+            ]
+        })
+    elif equipment_risk >= 30.0:
+        recommendations.append({
+            "priority": "High",
+            "title": "High Wear & Mechanical Fatigue",
+            "issue_detected": "Elevated Equipment Risk",
+            "why_it_matters": f"Equipment breakdown risk measured at {round(equipment_risk, 1)}%.",
+            "recommended_actions": [
+                "Perform preventive lubrication and hydraulic filter replacement."
+            ]
+        })
+    elif equipment_risk >= 15.0:
+        recommendations.append({
+            "priority": "Medium",
+            "title": "Routine Wear Monitoring",
+            "issue_detected": "Moderate Mechanical Stress",
+            "why_it_matters": f"Equipment breakdown risk is at {round(equipment_risk, 1)}%.",
+            "recommended_actions": [
+                "Perform scheduled start-of-shift mechanical inspections."
+            ]
+        })
+
+    # Fallback if no specific thresholds triggered
     if not recommendations:
-
         recommendations.append({
-
-            "priority":
-                "Low",
-
-            "issue_detected":
-                "Stable Operations",
-
+            "priority": "Low",
+            "title": "Stable Baseline Operations",
+            "issue_detected": "Normal Operational Parameters",
+            "why_it_matters": "All measured stress indices are operating within safe baseline limits.",
             "recommended_actions": [
-
-                "Continue regular monitoring.",
-
-                "Maintain preventive maintenance.",
-
-                "Track weather changes."
-
+                "Maintain standard daily operational routines and safety monitoring."
             ]
-
         })
 
+    top_factor = risk_factors[0]["factor"] if risk_factors else "Operational Parameters"
 
-    top_factor = risk_factors[0]["factor"]
-
-
-    summary = (
-
-        f"Production shortfall risk is {shortfall_risk}. "
-
-        f"The primary factor requiring attention is "
-
-        f"{top_factor}."
-
-    )
-
+    if shortfall_risk == "High":
+        ai_summary = f"CRITICAL: System predicts a HIGH production shortfall risk. Primary driver is {top_factor}."
+    elif shortfall_risk == "Medium":
+        ai_summary = f"WARNING: System predicts a MODERATE production shortfall risk. Primary area of focus is {top_factor}."
+    else:
+        ai_summary = f"STABLE: Overall production shortfall risk is LOW. Continue monitoring {top_factor}."
 
     return {
-
-        "summary":
-            summary,
-
-        "top_risk_factors":
-            risk_factors,
-
-        "recommendations":
-            recommendations
-
+        "current_risk": shortfall_risk,
+        "ai_summary": ai_summary,
+        "top_risk_factors": risk_factors,
+        "recommendations": recommendations
     }
 
-
 # =========================================================
-# GEMINI AI ANALYSIS
+# GEMINI AI RECOMMENDATION
 # =========================================================
 
-def generate_gemini_analysis(
-
+def generate_gemini_recommendation(
     state,
-
     district,
-
-    production,
-
     production_risk,
-
     equipment_risk,
-
-    temperature,
-
-    rainfall,
-
-    humidity,
-
-    production_stress,
-
     weather_stress,
-
-    local_analysis
-
+    production_stress,
+    trend
 ):
-
-
-    # FALLBACK IF API NOT AVAILABLE
 
     if gemini_client is None:
 
-        print(
-            "⚠ Gemini unavailable. Using local AI."
-        )
+        print("Gemini client unavailable - using local fallback")
 
         return None
 
 
     try:
 
-
         prompt = f"""
-You are GeoMn AI, an intelligent mining operations assistant.
+You are an AI mining operations assistant for GeoMn,
+a manganese mining intelligence system.
 
-GeoMn is a hybrid AI/ML system for manganese mining risk analysis.
+Analyze this mining risk assessment.
 
-IMPORTANT:
-The numerical predictions below were generated by machine learning models.
-Do NOT change or contradict the predicted risk levels.
-Your role is to explain the results and provide operational recommendations.
-
-==============================
-LOCATION
-==============================
-
+Location:
 State: {state}
-
 District: {district}
 
+Risk Analysis:
+Production Shortfall Risk: {production_risk}
+Equipment Breakdown Risk: {equipment_risk}%
+Weather Stress: {weather_stress}%
+Production Stress: {production_stress}%
+Production Data Source: {trend}
 
-==============================
-ML PREDICTION RESULTS
-==============================
+Instructions:
+1. Identify the main operational concern.
+2. Give 3 to 5 practical recommendations.
+3. Prioritize the highest risks.
+4. Do not invent geological facts.
+5. Keep the response concise and professional.
+6. Focus on actionable mining operation planning.
 
-Production Used: {production:.2f} tonnes
-
-Production Shortfall Risk:
-{production_risk}
-
-Equipment Breakdown Risk:
-{equipment_risk:.2f}%
-
-Temperature:
-{temperature:.2f} °C
-
-Rainfall:
-{rainfall:.2f} mm
-
-Humidity:
-{humidity:.2f}%
-
-Production Stress:
-{production_stress * 100:.1f}%
-
-Weather Stress:
-{weather_stress * 100:.1f}%
-
-
-==============================
-LOCAL RISK ANALYSIS
-==============================
-
-Top Risk Factors:
-
-{json.dumps(local_analysis["top_risk_factors"], indent=2)}
-
-
-==============================
-YOUR TASK
-==============================
-
-Provide an intelligent operational analysis.
-
-Use EXACTLY these sections:
-
-1. EXECUTIVE SUMMARY
-Briefly explain the overall situation.
-
-2. PRIMARY RISKS
-Identify the most important operational risks based ONLY on the ML results.
-
-3. RECOMMENDED ACTIONS
-Give 3 to 5 practical actions ranked by priority.
-
-4. OPERATIONAL INSIGHT
-Explain what the mining management team should monitor next.
-
-Rules:
-
-- Do not invent geological reserves.
-- Do not claim access to real-time mine sensors.
-- Do not change ML predictions.
-- Keep recommendations practical.
-- Be concise and professional.
-- Focus on manganese mining operations.
+Format clearly with headings and bullet points.
 """
 
 
-        response = (
-
-            gemini_client
-            .models
-            .generate_content(
-
-                model="gemini-2.5-flash",
-
-                contents=prompt
-
-            )
-
+        response = gemini_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
         )
 
 
-        if response and response.text:
-
-            return response.text
-
-
-        return None
+        return response.text
 
 
     except Exception as e:
 
-        print(
-            "✗ Gemini API Error:"
-        )
-
-        print(e)
+        print(f"Gemini recommendation error: {e}")
 
         return None
 
 
 # =========================================================
-# HOME PAGE
+# HOME
 # =========================================================
 
 @app.get("/")
-
 def read_root():
 
-    if not HTML_FILE_PATH.exists():
+    return FileResponse(
+        HTML_FILE_PATH,
+        media_type="text/html"
+    )
+# =========================================================
+# SERVE MANGANESE MAP
+# =========================================================
+
+@app.get("/map")
+
+def get_map():
+
+    map_file = BASE_DIR / "moil_manganese_map.html"
+
+    if not map_file.exists():
 
         raise HTTPException(
-
             status_code=404,
-
-            detail="Frontend HTML file not found"
-
+            detail="Map file not found"
         )
 
-
     return FileResponse(
-
-        HTML_FILE_PATH,
-
+        map_file,
         media_type="text/html"
-
     )
-
 
 # =========================================================
 # HEALTH CHECK
 # =========================================================
 
 @app.get("/health")
-
 def health():
 
     return {
 
-        "status":
-            "healthy",
+        "status": "healthy",
 
         "gemini_available":
             gemini_client is not None,
-
-        "gemini_api_key_configured":
-            bool(GEMINI_API_KEY),
 
         "equipment_model_loaded":
             equipment_model is not None,
@@ -1170,7 +938,6 @@ def health():
 
         "dataset_loaded":
             df is not None
-
     }
 
 
@@ -1179,39 +946,22 @@ def health():
 # =========================================================
 
 @app.get("/states")
-
 def get_states():
 
     if df is None:
-
         raise HTTPException(
-
             status_code=500,
-
             detail="Dataset not loaded"
-
         )
 
-
     states = sorted(
-
         df["State"]
-
         .dropna()
-
         .unique()
-
         .tolist()
-
     )
 
-
-    return {
-
-        "states":
-            states
-
-    }
+    return {"states": states}
 
 
 # =========================================================
@@ -1219,157 +969,199 @@ def get_states():
 # =========================================================
 
 @app.get("/districts/{state}")
-
 def get_districts(state: str):
-
-
-    if df is None:
-
-        raise HTTPException(
-
-            status_code=500,
-
-            detail="Dataset not loaded"
-
-        )
-
 
     state_data = df[
 
         df["State"]
-
-        .astype(str)
-
         .str.lower()
-
         .str.strip()
 
         ==
 
         state.lower().strip()
-
     ]
 
 
     if state_data.empty:
 
         raise HTTPException(
-
             status_code=404,
-
             detail="State not found"
-
         )
 
 
     districts = sorted(
-
         state_data["District"]
-
         .dropna()
-
         .unique()
-
         .tolist()
-
     )
 
 
     return {
 
-        "state":
-            state,
+        "state": state,
 
-        "districts":
-            districts
-
+        "districts": districts
     }
-
-
 # =========================================================
-# MAIN HYBRID PREDICTION ENDPOINT
+# GENERATE SENTINEL-2 MANGANESE MAP
 # =========================================================
 
-@app.post("/predict")
+@app.post("/generate-map")
 
-def predict(data: PredictionInput):
+def generate_map(
+    data: MapRequest
+):
 
-
-    # ----------------------------------
-    # SYSTEM CHECK
-    # ----------------------------------
-
-    if df is None:
+    if not EARTH_ENGINE_AVAILABLE:
 
         raise HTTPException(
 
-            status_code=500,
+            status_code=503,
 
-            detail="Dataset not loaded"
+            detail="Google Earth Engine is not available"
 
         )
 
 
-    if equipment_model is None:
+    result = generate_manganese_map(
+
+        west=data.west,
+
+        south=data.south,
+
+        east=data.east,
+
+        north=data.north,
+
+        output_file=str(
+            BASE_DIR /
+            "moil_manganese_map.html"
+        )
+
+    )
+
+
+    if not result.get("success"):
 
         raise HTTPException(
 
             status_code=500,
 
-            detail="Equipment model not loaded"
+            detail=result.get(
+                "error",
+                "Sentinel map generation failed"
+            )
 
+        )
+
+
+    return {
+
+        "status": "success",
+
+        "message":
+            "Sentinel-2 manganese analysis completed",
+
+        "threshold":
+            result.get("threshold"),
+
+        "map_url":
+            "/map"
+
+    }
+# =========================================================
+# SERVE GENERATED SENTINEL MAP
+# =========================================================
+
+@app.get("/map")
+
+def get_map():
+
+    map_path = (
+        BASE_DIR /
+        "moil_manganese_map.html"
+    )
+
+
+    if not map_path.exists():
+
+        raise HTTPException(
+
+            status_code=404,
+
+            detail="Map has not been generated yet"
+
+        )
+
+
+    return FileResponse(
+
+        map_path,
+
+        media_type="text/html"
+
+    )
+# =========================================================
+# MAIN PREDICTION
+# =========================================================
+
+@app.post("/predict")
+def predict(data: PredictionInput):
+
+
+    if equipment_model is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Equipment model not loaded"
         )
 
 
     if shortfall_model is None:
-
         raise HTTPException(
-
             status_code=500,
-
-            detail="Production shortfall model not loaded"
-
+            detail="Shortfall model not loaded"
         )
 
 
-    # ----------------------------------
-    # FILTER DISTRICT DATA
-    # ----------------------------------
+    if metadata is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Metadata not loaded"
+        )
+
+
+    if df is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Dataset not loaded"
+        )
+
 
     district_data = df[
 
         (
-
             df["State"]
-
-            .astype(str)
-
             .str.lower()
-
             .str.strip()
 
             ==
 
             data.state.lower().strip()
-
         )
 
         &
 
         (
-
             df["District"]
-
-            .astype(str)
-
             .str.lower()
-
             .str.strip()
 
             ==
 
             data.district.lower().strip()
-
         )
 
     ].copy()
@@ -1378,145 +1170,80 @@ def predict(data: PredictionInput):
     if district_data.empty:
 
         raise HTTPException(
-
             status_code=404,
-
             detail="Selected State/District not found"
-
         )
 
 
-    # ----------------------------------
-    # PRODUCTION INPUT
-    # ----------------------------------
-
     production_source = ""
-
     selected_year = None
 
 
     if (
-
         data.production_tonnes is not None
-
-        and
-
-        data.production_tonnes > 0
-
+        and data.production_tonnes > 0
     ):
 
         production = float(
-
             data.production_tonnes
-
         )
 
-
-        production_source = (
-
-            "Manual user input"
-
-        )
+        production_source = "Manual input"
 
 
     else:
 
-
         latest_year_data = district_data[
 
             district_data["Year"]
-
             .astype(str)
-
             .str.strip()
 
             == "2025-26"
-
         ]
 
 
         if not latest_year_data.empty:
 
-
-            latest_row = (
-
-                latest_year_data.iloc[-1]
-
-            )
-
+            latest_row = latest_year_data.iloc[-1]
 
             production = float(
-
-                latest_row[
-                    "Production_Tonnes"
-                ]
-
+                latest_row["Production_Tonnes"]
             )
-
 
             selected_year = "2025-26"
 
-
             production_source = (
-
                 "Automatic latest historical data"
-
             )
 
 
         else:
 
-
-            latest_row = (
-
-                district_data.iloc[-1]
-
-            )
-
+            latest_row = district_data.iloc[-1]
 
             production = float(
-
-                latest_row[
-                    "Production_Tonnes"
-                ]
-
+                latest_row["Production_Tonnes"]
             )
-
 
             selected_year = str(
-
                 latest_row["Year"]
-
             )
-
 
             production_source = (
-
                 "Latest available historical data"
-
             )
 
 
-    # ----------------------------------
-    # WEATHER SCENARIO
-    # ----------------------------------
+    temperature, rainfall, humidity = get_weather_values(
 
-    temperature, rainfall, humidity = (
+        district_data,
 
-        get_weather_values(
-
-            district_data,
-
-            data.weather_condition
-
-        )
-
+        data.weather_condition,
+        data.state,
+        data.district
     )
 
-
-    # ----------------------------------
-    # STRESS CALCULATION
-    # ----------------------------------
 
     stress = calculate_stress(
 
@@ -1529,14 +1256,8 @@ def predict(data: PredictionInput):
         rainfall,
 
         humidity
-
     )
 
-
-    # ==================================
-    # ML MODEL 1
-    # EQUIPMENT RISK
-    # ==================================
 
     equipment_features = pd.DataFrame(
 
@@ -1577,42 +1298,67 @@ def predict(data: PredictionInput):
             "Rainfall_Stress",
 
             "Humidity_Stress"
-
         ]
-
     )
 
 
-    equipment_risk = float(
+    # ==========================================
+    # EQUIPMENT RISK
+    # ==========================================
 
-        equipment_model.predict(
+    if data.equipment_mode == "Auto":
 
-            equipment_features
-
-        )[0]
-
-    )
-
-
-    equipment_risk = float(
-
-        np.clip(
-
-            equipment_risk,
-
-            0,
-
-            100
-
+        # Use trained ML model
+        equipment_risk = float(
+            equipment_model.predict(
+                equipment_features
+            )[0]
         )
 
+        equipment_risk_source = "ML Prediction"
+
+
+    elif data.equipment_mode == "Low":
+
+        # Low equipment failure simulation
+        equipment_risk = 10.0
+
+        equipment_risk_source = "Simulation - Low"
+
+
+    elif data.equipment_mode == "Medium":
+
+        # Medium equipment failure simulation
+        equipment_risk = 50.0
+
+        equipment_risk_source = "Simulation - Medium"
+
+
+    elif data.equipment_mode == "High":
+
+        # High equipment failure simulation
+        equipment_risk = 85.0
+
+        equipment_risk_source = "Simulation - High"
+
+
+    else:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid equipment mode"
+        )
+
+
+    # Keep risk between 0 and 100
+    equipment_risk = float(
+        np.clip(
+            equipment_risk,
+            0,
+            100
+        )
     )
 
-
-    # ==================================
-    # ML MODEL 2
-    # PRODUCTION SHORTFALL
-    # ==================================
 
     shortfall_features = [
 
@@ -1633,31 +1379,20 @@ def predict(data: PredictionInput):
         stress["production_stress"],
 
         equipment_risk
-
     ]
 
 
-    prediction = (
+    prediction = shortfall_model.predict(
 
-        shortfall_model.predict(
+        np.array(
+            [shortfall_features]
+        )
 
-            np.array([
-
-                shortfall_features
-
-            ])
-
-        )[0]
-
-    )
+    )[0]
 
 
     prediction = int(prediction)
 
-
-    # ----------------------------------
-    # LABEL MAPPING
-    # ----------------------------------
 
     reverse_label_map = {
 
@@ -1666,311 +1401,147 @@ def predict(data: PredictionInput):
         1: "Medium",
 
         2: "High"
-
     }
 
 
     if (
-
         isinstance(metadata, dict)
-
-        and
-
-        "reverse_label_map" in metadata
-
+        and "reverse_label_map" in metadata
     ):
 
         reverse_label_map = {
 
             int(k): v
 
-            for k, v in
-
-            metadata[
+            for k, v in metadata[
                 "reverse_label_map"
             ].items()
-
         }
 
 
-    shortfall_risk = (
-
-        reverse_label_map.get(
-
-            prediction,
-
-            "Unknown"
-
-        )
-
+    shortfall_risk = reverse_label_map.get(
+        prediction,
+        "Unknown"
     )
 
 
-    # ==================================
-    # LOCAL AI ANALYSIS
-    # ==================================
+    ai_recommendations = generate_ai_recommendations(
 
-    local_analysis = (
+        production_stress=
+            stress["production_stress"],
 
-        generate_local_recommendations(
+        temperature_stress=
+            stress["temperature_stress"],
 
-            production_stress=
+        rainfall_stress=
+            stress["rainfall_stress"],
 
-                stress[
-                    "production_stress"
-                ],
+        humidity_stress=
+            stress["humidity_stress"],
 
-            temperature_stress=
+        weather_stress=
+            stress["weather_stress"],
 
-                stress[
-                    "temperature_stress"
-                ],
+        equipment_risk=
+            equipment_risk,
 
-            rainfall_stress=
-
-                stress[
-                    "rainfall_stress"
-                ],
-
-            humidity_stress=
-
-                stress[
-                    "humidity_stress"
-                ],
-
-            weather_stress=
-
-                stress[
-                    "weather_stress"
-                ],
-
-            equipment_risk=
-
-                equipment_risk,
-
-            shortfall_risk=
-
-                shortfall_risk
-
-        )
-
+        shortfall_risk=
+            shortfall_risk
     )
 
 
-    # ==================================
-    # GEMINI GENERATIVE AI
-    # ==================================
+    ai_recommendation = generate_gemini_recommendation(
 
-    gemini_analysis = (
+        state=data.state,
 
-        generate_gemini_analysis(
+        district=data.district,
 
-            state=data.state,
+        production_risk=shortfall_risk,
 
-            district=data.district,
+        equipment_risk=
+            round(equipment_risk, 2),
 
-            production=production,
+        weather_stress=
+            round(stress["weather_stress"], 2),
 
-            production_risk=
+        production_stress=
+            round(stress["production_stress"], 2),
 
-                shortfall_risk,
-
-            equipment_risk=
-
-                equipment_risk,
-
-            temperature=
-
-                temperature,
-
-            rainfall=
-
-                rainfall,
-
-            humidity=
-
-                humidity,
-
-            production_stress=
-
-                stress[
-                    "production_stress"
-                ],
-
-            weather_stress=
-
-                stress[
-                    "weather_stress"
-                ],
-
-            local_analysis=
-
-                local_analysis
-
-        )
-
+        trend=production_source
     )
 
 
-    # ==================================
-    # HYBRID AI DECISION
-    # ==================================
-
-    if gemini_analysis:
+    if ai_recommendation:
 
         recommendation_source = (
-
-            "Hybrid AI: ML Risk Prediction + Gemini Analysis"
-
+            "Gemini AI Recommendation"
         )
-
-        final_analysis = gemini_analysis
-
 
     else:
 
         recommendation_source = (
-
-            "ML Risk Prediction + Local AI Fallback"
-
+            "GeoMn Rule-Based Recommendation "
+            "(Offline Fallback)"
         )
 
-        final_analysis = (
-
-            local_analysis["summary"]
-
-        )
-
-
-    # ==================================
-    # FINAL RESPONSE
-    # ==================================
 
     return {
 
+        "state": data.state,
 
-        # LOCATION
+        "district": data.district,
 
-        "state":
-
-            data.state,
-
-
-        "district":
-
-            data.district,
-
-
-        # SYSTEM TYPE
-
-        "system_type":
-
-            "Hybrid ML + Generative AI",
-
-
-        # PRODUCTION
 
         "production_used": {
 
             "production_tonnes":
-
-                round(
-                    production,
-                    2
-                ),
+                round(production, 2),
 
             "year":
-
                 selected_year,
 
             "source":
-
                 production_source
-
         },
 
 
-        # WEATHER
-
         "weather_condition":
-
             data.weather_condition,
 
 
         "weather_values": {
 
             "temperature_c":
-
-                round(
-                    temperature,
-                    2
-                ),
+                round(temperature, 2),
 
             "rainfall_mm":
-
-                round(
-                    rainfall,
-                    2
-                ),
+                round(rainfall, 2),
 
             "humidity_percent":
-
-                round(
-                    humidity,
-                    2
-                )
-
+                round(humidity, 2)
         },
 
 
-        # STRESS
-
         "stress_analysis":
-
             stress,
 
 
-        # ML OUTPUT
-
-        "ml_predictions": {
-
-            "equipment_breakdown_risk_percent":
-
-                round(
-                    equipment_risk,
-                    2
-                ),
-
-            "production_shortfall_risk":
-
-                shortfall_risk
-
-        },
+        "equipment_breakdown_risk_percent":
+            round(equipment_risk, 2),
 
 
-        # LOCAL AI
-
-        "local_risk_analysis":
-
-            local_analysis,
+        "production_shortfall_risk":
+            shortfall_risk,
 
 
-        # GEMINI AI
-
-        "gemini_analysis":
-
-            gemini_analysis,
+        "ai_recommendations":
+            ai_recommendations,
 
 
-        # FINAL HYBRID OUTPUT
-
-        "final_ai_analysis":
-
-            final_analysis,
+        "ai_recommendation":
+            ai_recommendation,
 
 
         "recommendation_source":
-
             recommendation_source
-
     }
