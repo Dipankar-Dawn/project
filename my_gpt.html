@@ -160,7 +160,30 @@
 <div class="glass-panel p-5 rounded-2xl flex flex-col gap-3 flex-grow min-h-[200px]"><div class="flex items-center justify-between"><h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><i data-lucide="terminal" class="w-4 h-4 text-purple-400"></i> AI Analysis Terminal</h2><span class="w-2 h-2 rounded-full bg-emerald-400"></span></div><div id="logConsole" class="bg-black/80 rounded-xl p-4 font-mono text-[11px] text-slate-300 space-y-2 h-44 overflow-y-auto border border-white/10"><p class="text-slate-500">[System Ready]: Select a state and mining district to begin risk analysis...</p></div></div>
 </section>
 <section class="lg:col-span-7 flex flex-col gap-5">
-<div class="glass-panel p-5 rounded-2xl relative overflow-hidden min-h-[390px] flex flex-col border border-white/10"><div class="flex items-center justify-between z-10 bg-black/40 p-3 rounded-xl backdrop-blur-md border border-white/10"><div class="flex items-center gap-3"><span class="p-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30"><i data-lucide="radar" class="w-4 h-4"></i></span><div><h3 class="text-sm font-bold text-slate-100" id="mapTitle">Mining Area Intelligence View</h3><p class="text-[11px] text-slate-400" id="mapSubtitle">Environmental, weather and operational risk monitoring</p></div></div><span id="mapBadge" class="text-xs px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 font-mono">Idle</span></div><div id="mapContainer" class="flex-grow flex items-center justify-center mt-4 bg-black/40 rounded-xl border border-white/5 relative overflow-hidden"><div id="mapPlaceholder" class="text-center p-8"><div class="p-4 inline-flex rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400"><i data-lucide="globe" class="w-10 h-10 animate-pulse"></i></div><h4 class="text-sm font-semibold text-slate-300 mt-4">Awaiting Mining Region</h4><p class="text-xs text-slate-500 mt-2 max-w-sm">The backend will combine district data, weather features, equipment risk and XGBoost prediction here.</p></div></div></div>
+<div class="glass-panel p-5 rounded-2xl relative overflow-hidden min-h-[390px] flex flex-col border border-white/10"><div class="flex items-center justify-between z-10 bg-black/40 p-3 rounded-xl backdrop-blur-md border border-white/10"><div class="flex items-center gap-3"><span class="p-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30"><i data-lucide="radar" class="w-4 h-4"></i></span><div><h3 class="text-sm font-bold text-slate-100" id="mapTitle">Mining Area Intelligence View</h3><p class="text-[11px] text-slate-400" id="mapSubtitle">Environmental, weather and operational risk monitoring</p></div></div><span id="mapBadge" class="text-xs px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 font-mono">Idle</span></div><div id="mapContainer"
+     class="flex-grow min-h-[500px] mt-4 bg-black/40 rounded-xl border border-white/5 relative overflow-hidden">
+
+    <div id="mapPlaceholder"
+         class="absolute inset-0 flex items-center justify-center text-center p-8">
+
+        <div>
+            <div class="p-4 inline-flex rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                <i data-lucide="globe" class="w-10 h-10 animate-pulse"></i>
+            </div>
+
+            <h4 class="text-sm font-semibold text-slate-300 mt-4">
+                Awaiting Mining Region
+            </h4>
+
+            <p class="text-xs text-slate-500 mt-2 max-w-sm">
+                Select a mining district and run the analysis to generate
+                the Sentinel-2 manganese prospecting map.
+            </p>
+        </div>
+
+    </div>
+
+</div>
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 <div class="glass-panel p-4 rounded-2xl"><span class="text-xs text-slate-400 font-medium flex items-center gap-2"><i data-lucide="alert-triangle" class="w-4 h-4 text-purple-400"></i> Shortfall Risk</span><div class="mt-3"><span id="shortfallVal" class="text-2xl font-black font-mono text-purple-400">--</span><p id="shortfallSub" class="text-[10px] text-slate-500 mt-1">Low / Medium / High classification</p></div></div>
 <div class="glass-panel p-4 rounded-2xl"><span class="text-xs text-slate-400 font-medium flex items-center gap-2"><i data-lucide="cpu" class="w-4 h-4 text-blue-400"></i> Equipment Risk</span><div class="mt-3"><span id="equipmentVal" class="text-2xl font-black font-mono text-blue-400">-- %</span><p id="equipmentSub" class="text-[10px] text-slate-500 mt-1">Auto ML / Manual simulation</p></div></div>
@@ -181,6 +204,18 @@ runBtn.addEventListener('click', async () => {
 
     const state = stateSelect.value;
     const district = districtSelect.value;
+    // Get selected district coordinates
+const selectedDistrict =
+    (regionData[state] || []).find(
+        x => x.name === district
+    );
+
+if (!selectedDistrict) {
+    throw new Error("District coordinates not found.");
+}
+
+const lat = selectedDistrict.lat;
+const lng = selectedDistrict.lng;
 
     const weather = document
         .getElementById('weatherCondition')
@@ -228,9 +263,9 @@ runBtn.addEventListener('click', async () => {
                     state: state,
 
                     district: district,
-
-                    weather_condition: weather
-
+                    
+                    weather_condition: weather,
+                    equipment_mode: equipmentMode
                 })
 
             }
@@ -253,6 +288,62 @@ runBtn.addEventListener('click', async () => {
 
 
         const result = await response.json();
+        // ==========================================
+// GENERATE SENTINEL-2 MANGANESE MAP
+// ==========================================
+
+log(
+    'Generating Sentinel-2 manganese prospecting map...',
+    'text-purple-300'
+);
+
+// Create bounding box around selected district
+const west = lng - 0.05;
+const east = lng + 0.05;
+const south = lat - 0.05;
+const north = lat + 0.05;
+
+const mapResponse = await fetch(
+    '/generate-map',
+    {
+        method: 'POST',
+
+        headers: {
+            'Content-Type': 'application/json'
+        },
+
+        body: JSON.stringify({
+            west: west,
+            south: south,
+            east: east,
+            north: north
+        })
+    }
+);
+
+if (!mapResponse.ok) {
+
+    const mapError =
+        await mapResponse.text();
+
+    throw new Error(
+        'Sentinel-2 map generation failed: ' +
+        mapError
+    );
+}
+
+const mapResult =
+    await mapResponse.json();
+
+console.log(
+    'Sentinel-2 Map Result:',
+    mapResult
+);
+
+log(
+    'Sentinel-2 manganese map generated successfully.',
+    'text-emerald-400'
+);
 
 
         console.log(
@@ -279,27 +370,7 @@ runBtn.addEventListener('click', async () => {
             result.equipment_breakdown_risk_percent;
 
 
-        // Simulation modes
-
-        if (equipmentMode === 'Low') {
-
-            equipmentRisk = 10;
-
-        }
-
-        else if (equipmentMode === 'Medium') {
-
-            equipmentRisk = 50;
-
-        }
-
-        else if (equipmentMode === 'High') {
-
-            equipmentRisk = 85;
-
-        }
-
-
+        
       
 
         // ==========================================
@@ -371,129 +442,21 @@ runBtn.addEventListener('click', async () => {
             result.weather_values
                 ? result.weather_values.rainfall_mm
                 : '--';
+// ==========================================
+// DISPLAY SENTINEL-2 MAP
+// ==========================================
 
+document.getElementById(
+    'mapPlaceholder'
+).innerHTML = `
+    <iframe
+        src="/map"
+        class="w-full h-full min-h-[500px] border-0 rounded-xl"
+        title="Sentinel-2 Manganese Map">
+    </iframe>
+`;
 
-        document.getElementById(
-            'mapPlaceholder'
-        ).innerHTML = `
-
-            <div class="w-full h-full p-6">
-
-                <div class="text-center mb-5">
-
-                    <div class="p-3 inline-flex rounded-full
-                        bg-purple-500/10
-                        border border-purple-500/30
-                        text-purple-400">
-
-                        <i data-lucide="activity"
-                           class="w-8 h-8"></i>
-
-                    </div>
-
-                    <h4 class="text-lg font-bold
-                        text-slate-200 mt-3">
-
-                        ${district} Mining Analysis
-
-                    </h4>
-
-                </div>
-
-
-                <div class="grid grid-cols-2 gap-3
-                    max-w-md mx-auto">
-
-                    <div class="bg-black/50
-                        border border-white/10
-                        rounded-xl p-4">
-
-                        <p class="text-[10px]
-                            text-slate-400">
-
-                            PRODUCTION
-
-                        </p>
-
-                        <p class="text-purple-300
-                            font-bold mt-1">
-
-                            ${Number(production)
-                                .toLocaleString()}
-                            Tonnes
-
-                        </p>
-
-                    </div>
-
-
-                    <div class="bg-black/50
-                        border border-white/10
-                        rounded-xl p-4">
-
-                        <p class="text-[10px]
-                            text-slate-400">
-
-                            DATA YEAR
-
-                        </p>
-
-                        <p class="text-purple-300
-                            font-bold mt-1">
-
-                            ${year}
-
-                        </p>
-
-                    </div>
-
-
-                    <div class="bg-black/50
-                        border border-white/10
-                        rounded-xl p-4">
-
-                        <p class="text-[10px]
-                            text-slate-400">
-
-                            TEMPERATURE
-
-                        </p>
-
-                        <p class="text-orange-300
-                            font-bold mt-1">
-
-                            ${temperature} °C
-
-                        </p>
-
-                    </div>
-
-
-                    <div class="bg-black/50
-                        border border-white/10
-                        rounded-xl p-4">
-
-                        <p class="text-[10px]
-                            text-slate-400">
-
-                            RAINFALL
-
-                        </p>
-
-                        <p class="text-blue-300
-                            font-bold mt-1">
-
-                            ${rainfall} mm
-
-                        </p>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        `;
+    
 
 
         // ==========================================
