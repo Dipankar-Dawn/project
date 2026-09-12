@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login</title>
+<style>
+  * { box-sizing: border-box; font-family: system-ui, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f1f5f9; }
+  .card { background: white; padding: 32px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 380px; }
+  h2 { margin: 0 0 20px; text-align: center; }
+  input { width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+  button { width: 100%; padding: 11px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+  button:hover { background: #1d4ed8; }
+  #msg { color: #dc2626; font-size: 14px; min-height: 18px; text-align: center; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Login</h2>
+  <input id="uid" type="text" placeholder="Username / UID" autocomplete="username">
+  <input id="pwd" type="password" placeholder="Password" autocomplete="current-password">
+  <button onclick="doLogin()">Login</button>
+  <div id="msg"></div>
+</div>
+
+<script>
+// 1. EDIT YOUR HARDCODED USERNAMES/PASSWORDS HERE
+const USERS = {
+  "admin": "admin123",
+  "user1": "pass123",
+  "sam": "sam@2026"
+};
+
+function doLogin() {
+  const uid = document.getElementById('uid').value.trim();
+  const pwd = document.getElementById('pwd').value;
+  const msg = document.getElementById('msg');
+
+  if (USERS[uid] && USERS[uid] === pwd) {
+    // Save login state so index.html can verify
+    sessionStorage.setItem('isLoggedIn', 'true');
+    sessionStorage.setItem('loggedUser', uid);
+    // Redirect to your actual website
+    window.location.href = 'index.html';
+  } else {
+    msg.textContent = 'Invalid UID or password';
+  }
+}
+
+// Allow Enter key to login
+document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// If already logged in, skip login
+if (sessionStorage.getItem('isLoggedIn') === 'true') {
+  window.location.href = 'my_gpt.html';
+}
+</script>
+</body>
+</html>
