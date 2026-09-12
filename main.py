@@ -9,7 +9,11 @@ import os
 import ee
 from dotenv import load_dotenv
 from google import genai
-
+import sqlite3
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from fastapi.security import OAuth2PasswordBearer
 import pandas as pd
 import numpy as np
 import joblib
@@ -24,8 +28,47 @@ from sentinel2 import (
 # =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
+# =========================================================
+# AUTHENTICATION
+# =========================================================
+
+DB_PATH = BASE_DIR / "users.db"
+
+SECRET_KEY = os.getenv(
+    "JWT_SECRET_KEY",
+    "change-this-secret-key-in-production"
+)
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto"
+)
+
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/login"
+)
+def init_database():
+    conn = sqlite3.connect(DB_PATH)
+
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
 
 
+init_database()
 # =========================================================
 # LOAD ENVIRONMENT VARIABLES
 # =========================================================
@@ -175,6 +218,39 @@ class PredictionInput(BaseModel):
     weather_condition: str
     equipment_mode: str = "Auto"
     production_tonnes: float | None = None
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+def hash_password(password: str):
+    return pwd_context.hash(password)
+
+
+def verify_password(password: str, hashed_password: str):
+    return pwd_context.verify(password, hashed_password)
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+
+    expire = datetime.utcnow() + timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+
+    to_encode.update({
+        "exp": expire
+    })
+
+    return jwt.encode(
+        to_encode,
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
 # =========================================================
 # SENTINEL MAP REQUEST MODEL
 # =========================================================
@@ -1012,7 +1088,8 @@ def get_districts(state: str):
 @app.post("/generate-map")
 
 def generate_map(
-    data: MapRequest
+    data: MapRequest,
+    current_user: dict = Depends(get_current_user)
 ):
 
     if not EARTH_ENGINE_AVAILABLE:
@@ -1107,9 +1184,129 @@ def get_map():
 # =========================================================
 # MAIN PREDICTION
 # =========================================================
+@app.post("/register")
+def register_user(data: RegisterRequest):
 
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id FROM users WHERE email = ?",
+        (data.email.lower().strip(),)
+    )
+
+    existing_user = cursor.fetchone()
+
+    if existing_user:
+        conn.close()
+
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+
+    hashed_password = hash_password(data.password)
+
+    cursor.execute(
+        """
+        INSERT INTO users (name, email, password)
+        VALUES (?, ?, ?)
+        """,
+        (
+            data.name.strip(),
+            data.email.lower().strip(),
+            hashed_password
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": "Registration successful"
+    }
+@app.post("/login")
+def login_user(data: LoginRequest):
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, name, email, password
+        FROM users
+        WHERE email = ?
+        """,
+        (data.email.lower().strip(),)
+    )
+
+    user = cursor.fetchone()
+
+    conn.close()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+
+    user_id, name, email, hashed_password = user
+
+    if not verify_password(
+        data.password,
+        hashed_password
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+
+    token = create_access_token({
+        "sub": str(user_id),
+        "email": email,
+        "name": name
+    })
+
+    return {
+        "status": "success",
+        "access_token": token,
+        "token_type": "bearer",
+        "name": name
+    }
+def get_current_user(
+    token: str = Depends(oauth2_scheme)
+):
+
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Invalid or expired authentication token"
+    )
+
+    try:
+
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+        user_id = payload.get("sub")
+
+        if user_id is None:
+            raise credentials_exception
+
+        return payload
+
+    except JWTError:
+
+        raise credentials_exception
 @app.post("/predict")
-def predict(data: PredictionInput):
+def predict(
+    data: PredictionInput,
+    current_user: dict = Depends(get_current_user)
+
+):
 
 
     if equipment_model is None:
