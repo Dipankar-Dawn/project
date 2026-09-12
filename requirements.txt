@@ -10,6 +10,6 @@ python-dotenv
 earthengine-api
 geemap
 folium
-ython-jose[cryptography]
+python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
