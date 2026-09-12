@@ -1,953 +1,2404 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoMn | AI & Space Tech Manganese Prospecting</title>
+
+    <title>GeoMn | Mining Intelligence Platform</title>
+
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        manganese: {
-                            accent: '#a855f7',
-                            glow: '#c084fc',
-                            dark: '#0a0a0f',
-                            panel: '#12111a'
-                        }
-                    },
-                    animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        'scan': 'scan 2.2s linear infinite',
-                    },
-                    keyframes: {
-                        scan: {
-                            '0%': { transform: 'translateY(-100%)' },
-                            '100%': { transform: 'translateY(100%)' }
-                        }
-                    }
-                }
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+                "Segoe UI", sans-serif;
+            background:
+                radial-gradient(
+                    circle at 15% 10%,
+                    rgba(139, 92, 246, 0.18),
+                    transparent 30%
+                ),
+                radial-gradient(
+                    circle at 85% 20%,
+                    rgba(168, 85, 247, 0.12),
+                    transparent 30%
+                ),
+                #08080d;
+            color: #f5f3ff;
+        }
+
+        .glass {
+            background: rgba(20, 18, 30, 0.72);
+            border: 1px solid rgba(168, 85, 247, 0.16);
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+
+        .glass-soft {
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .purple-glow {
+            box-shadow:
+                0 0 30px rgba(139, 92, 246, 0.12),
+                inset 0 0 20px rgba(139, 92, 246, 0.03);
+        }
+
+        .gradient-text {
+            background: linear-gradient(
+                90deg,
+                #c4b5fd,
+                #a78bfa,
+                #e9d5ff
+            );
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        select,
+        input {
+            outline: none;
+        }
+
+        select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image:
+                linear-gradient(45deg, transparent 50%, #a78bfa 50%),
+                linear-gradient(135deg, #a78bfa 50%, transparent 50%);
+            background-position:
+                calc(100% - 18px) 50%,
+                calc(100% - 12px) 50%;
+            background-size:
+                6px 6px,
+                6px 6px;
+            background-repeat: no-repeat;
+        }
+
+        #stateSelect,
+        #districtSelect {
+            width: 100%;
+            padding: 13px 42px 13px 15px;
+            border-radius: 14px;
+            color: #f5f3ff;
+            background: rgba(12, 10, 18, 0.8);
+            border: 1px solid rgba(168, 85, 247, 0.22);
+            transition: 0.2s ease;
+        }
+
+        #stateSelect:hover,
+        #districtSelect:hover {
+            border-color: rgba(168, 85, 247, 0.45);
+        }
+
+        #stateSelect:focus,
+        #districtSelect:focus {
+            border-color: rgba(167, 139, 250, 0.7);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+
+        select option {
+            background: #171321;
+            color: white;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #22c55e;
+            box-shadow: 0 0 12px rgba(34, 197, 94, 0.8);
+        }
+
+        .metric-card {
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(168, 85, 247, 0.32);
+        }
+
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.45;
             }
         }
-    </script>
-    <style>
-        /* Liquid Glassmorphism Core */
-        .glass-panel {
-        background: rgba(18, 17, 26, 0.45);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
 
-        .glass-panel-interactive {
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-    .glass-panel-interactive:hover {
-        border-color: rgba(168, 85, 247, 0.3);
-        box-shadow: 0 12px 40px 0 rgba(168, 85, 247, 0.15);
-        transform: translateY(-3px);
-        background: rgba(18, 17, 26, 0.6);
-    }
-
-       .glass-input {
-        background-color: rgba(10, 10, 15, 0.6);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        appearance: none;
-        
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 1.25rem center;
-        background-size: 1.2rem;
-        padding-right: 2.75rem;
-        cursor: pointer;
-    }
-        .glass-input:hover:not(:disabled) {
-        border-color: rgba(168, 85, 247, 0.5);
-        box-shadow: 0 0 20px -5px rgba(168, 85, 247, 0.25);
-        background-color: rgba(168, 85, 247, 0.05);
-        transform: translateY(-2px);
-    }
-        .glass-input option {
-        background-color: #12111a;
-        color: #f8fafc;
-        padding: 12px;
-    }
-/* ==========================================
-   STATE & DISTRICT DROPDOWN
-   ========================================== */
-
-#stateSelect,
-#districtSelect {
-    appearance: none !important;
-    -webkit-appearance: none !important;
-    -moz-appearance: none !important;
-
-    background-color: rgba(10, 10, 15, 0.85) !important;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
-    background-repeat: no-repeat !important;
-    background-position: right 1.25rem center !important;
-    background-size: 1.2rem !important;
-
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-
-    padding-right: 2.75rem !important;
-
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    cursor: pointer;
-}
-
-#stateSelect:hover:not(:disabled),
-#districtSelect:hover:not(:disabled) {
-    border-color: rgba(168, 85, 247, 0.5) !important;
-    background-color: rgba(168, 85, 247, 0.08) !important;
-    box-shadow: 0 0 20px -5px rgba(168, 85, 247, 0.35);
-    transform: translateY(-2px);
-}
-
-#stateSelect:focus,
-#districtSelect:focus {
-    outline: none !important;
-    border-color: rgba(168, 85, 247, 0.8) !important;
-    background-color: rgba(168, 85, 247, 0.12) !important;
-    box-shadow: 0 0 20px -2px rgba(168, 85, 247, 0.5);
-}
-
-#stateSelect:disabled,
-#districtSelect:disabled {
-    cursor: not-allowed;
-    opacity: 0.4;
-}
-
-/* Dropdown options */
-#stateSelect option,
-#districtSelect option {
-    background-color: #12111a !important;
-    color: #f8fafc !important;
-}
-
-#stateSelect option:checked,
-#districtSelect option:checked {
-    background-color: #3b214f !important;
-    color: #e9d5ff !important;
-}
-        /* Modern Hover Effects for Dropdown Items */
-        .dropdown-item {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-        }
-        .dropdown-item:hover {
-            background: rgba(168, 85, 247, 0.15);
-            border-color: rgba(168, 85, 247, 0.4);
-            padding-left: 1.5rem; /* Slide right effect */
-            box-shadow: inset 4px 0 0 0 rgba(168, 85, 247, 0.8);
+        .recommendation-card {
+            border-left: 3px solid #8b5cf6;
         }
 
-        /* Liquid Glass Shine Button Effect */
-        .btn-shine {
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-        .btn-shine::after {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -60%;
-            width: 20%;
-            height: 200%;
-            opacity: 0;
-            transform: rotate(30deg);
-            background: linear-gradient(
-                to right, 
-                rgba(255, 255, 255, 0.0) 0%,
-                rgba(255, 255, 255, 0.1) 77%,
-                rgba(255, 255, 255, 0.5) 92%,
-                rgba(255, 255, 255, 0.0) 100%
-            );
-        }
-        .btn-shine:hover:not(:disabled) {
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 10px 25px -5px rgba(168, 85, 247, 0.5);
-        }
-        .btn-shine:hover:not(:disabled)::after {
-            opacity: 1;
-            left: 130%;
-            transition-property: left, top, opacity;
-            transition-duration: 0.7s, 0.7s, 0.15s;
-            transition-timing-function: ease-in-out;
+        .critical {
+            border-left-color: #ef4444;
         }
 
-        /* Ambient Glow Backgrounds */
-        .bg-glow-purple {
-            position: absolute;
-            width: 500px;
-            height: 500px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, rgba(0,0,0,0) 70%);
-            filter: blur(80px);
-            pointer-events: none;
-            z-index: 0;
+        .high {
+            border-left-color: #f97316;
         }
 
-        .bg-glow-blue {
-            position: absolute;
-            width: 450px;
-            height: 450px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(0,0,0,0) 70%);
-            filter: blur(80px);
-            pointer-events: none;
-            z-index: 0;
+        .medium {
+            border-left-color: #eab308;
         }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(10, 10, 15, 0.8); }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.6); }
-#dashboard {
-    display: none;
-}
+        .low {
+            border-left-color: #22c55e;
+        }
+
+        iframe {
+            background: #09090b;
+        }
+
+        .scrollbar::-webkit-scrollbar {
+            width: 7px;
+        }
+
+        .scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(139, 92, 246, 0.35);
+            border-radius: 10px;
+        }
+
+        .scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(139, 92, 246, 0.55);
+        }
     </style>
 </head>
-<body class="min-h-screen bg-[#0a0a0f] text-slate-100 overflow-x-hidden selection:bg-purple-500/30 selection:text-white">
 
- <!-- AUTHENTICATION SCREEN -->
-<div id="authScreen" class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0a0a0f] px-4">
+<body>
 
-    <div class="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl">
+<!-- =========================================================
+     MAIN DASHBOARD
+========================================================= -->
 
-        <!-- LOGO / TITLE -->
-        <div class="text-center mb-8">
-            <div class="text-3xl font-bold text-purple-400 mb-2">
-                GeoMn
-            </div>
-            <h1 class="text-2xl font-semibold text-white">
-                Welcome to GeoMn
-            </h1>
-            <p class="text-sm text-slate-400 mt-2">
-                Mining Risk & Production Intelligence Platform
-            </p>
-        </div>
+<div id="dashboard" class="min-h-screen">
 
-        <!-- LOGIN FORM -->
-        <div id="loginForm">
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
 
-            <h2 class="text-xl font-semibold text-white mb-5">
-                Login
-            </h2>
+    <header class="sticky top-0 z-50 border-b border-white/5 bg-[#08080d]/80 backdrop-blur-xl">
 
-            <input
-                id="loginEmail"
-                type="email"
-                placeholder="Email"
-                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
-            >
+        <div class="max-w-[1600px] mx-auto px-5 lg:px-8 py-4">
 
-            <input
-                id="loginPassword"
-                type="password"
-                placeholder="Password"
-                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
-            >
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-            <button
-                id="loginBtn"
-                class="w-full rounded-lg bg-purple-600 hover:bg-purple-500 px-4 py-3 font-semibold text-white transition"
-            >
-                Login
-            </button>
+                <!-- Logo / Title -->
+                <div class="flex items-center gap-4">
 
-            <p id="loginMessage" class="text-sm text-center mt-4"></p>
+                    <div class="w-12 h-12 rounded-2xl bg-purple-500/10
+                                border border-purple-400/20
+                                flex items-center justify-center purple-glow">
 
-            <p class="text-center text-sm text-slate-400 mt-6">
-                Don't have an account?
-                <button
-                    type="button"
-                    onclick="showRegister()"
-                    class="text-purple-400 hover:text-purple-300"
-                >
-                    Register
-                </button>
-            </p>
+                        <i data-lucide="mountain"
+                           class="w-6 h-6 text-purple-300"></i>
 
-        </div>
+                    </div>
 
-        <!-- REGISTER FORM -->
-        <div id="registerForm" class="hidden">
+                    <div>
+                        <div class="flex items-center gap-2">
 
-            <h2 class="text-xl font-semibold text-white mb-5">
-                Create Account
-            </h2>
+                            <h1 class="text-xl md:text-2xl font-bold gradient-text">
+                                GeoMn
+                            </h1>
 
-            <input
-                id="registerName"
-                type="text"
-                placeholder="Full Name"
-                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
-            >
+                            <span class="text-[10px] uppercase tracking-[0.2em]
+                                         px-2 py-1 rounded-full
+                                         bg-purple-500/10
+                                         border border-purple-400/20
+                                         text-purple-300">
+                                AI Platform
+                            </span>
 
-            <input
-                id="registerEmail"
-                type="email"
-                placeholder="Email"
-                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
-            >
+                        </div>
 
-            <input
-                id="registerPassword"
-                type="password"
-                placeholder="Password"
-                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
-            >
+                        <p class="text-xs text-gray-500">
+                            Manganese Mining Intelligence System
+                        </p>
+                    </div>
 
-            <button
-                id="registerBtn"
-                class="w-full rounded-lg bg-purple-600 hover:bg-purple-500 px-4 py-3 font-semibold text-white transition"
-            >
-                Create Account
-            </button>
+                </div>
 
-            <p id="registerMessage" class="text-sm text-center mt-4"></p>
+                <!-- System Status -->
 
-            <p class="text-center text-sm text-slate-400 mt-6">
-                Already have an account?
-                <button
-                    type="button"
-                    onclick="showLogin()"
-                    class="text-purple-400 hover:text-purple-300"
-                >
-                    Login
-                </button>
-            </p>
+                <div class="flex items-center gap-3">
 
-        </div>
+                    <div class="glass-soft rounded-full px-4 py-2
+                                flex items-center gap-2">
 
-    </div>
-</div>
-<div id="dashboard">
-<div class="bg-glow-purple top-[-100px] left-[-100px]"></div><div class="bg-glow-blue bottom-[-100px] right-[-100px]"></div>
-<header class="sticky top-0 z-[100] glass-panel border-b border-white/10 px-6 py-3.5 flex items-center justify-between shadow-2xl shadow-black/50">
- <div class="flex items-center gap-3"><div class="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400"><i data-lucide="satellite" class="w-6 h-6 animate-pulse-slow"></i></div><div><div class="flex items-center gap-2"><h1 class="text-xl font-black tracking-wider bg-gradient-to-r from-white via-purple-200 to-purple-400 bg-clip-text text-transparent">GeoMn Mining Intelligence</h1><span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold tracking-wide uppercase">AI / ML</span></div><p class="text-xs text-slate-400">Space, Weather & AI-Powered Manganese Production Risk Platform</p></div></div>
- <div class="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> AI Systems Ready</div>
-</header>
-<main class="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10 max-w-[1920px] mx-auto">
-<section class="lg:col-span-5 flex flex-col gap-5">
-<div class="glass-panel p-5 rounded-2xl flex flex-col gap-5 relative z-50">
-<div><div class="flex items-center justify-between"><h2 class="text-xs font-bold uppercase tracking-widest text-purple-300 flex items-center gap-2"><i data-lucide="map" class="w-4 h-4 text-purple-400"></i> 1. Select Mining Region</h2><span class="text-[10px] bg-purple-500/20 border border-purple-500/30 text-purple-300 px-2.5 py-0.5 rounded-full font-mono">16 Districts</span></div>
-<select id="stateSelect" class="glass-input mt-3 w-full rounded-xl px-4 py-3.5 text-sm text-slate-200"><option value="">-- Select State --</option></select></div>
-<div class="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-<div><label class="text-xs font-medium text-slate-400 flex items-center gap-2"><i data-lucide="layers" class="w-4 h-4 text-purple-400"></i> Target Mining District</label><select id="districtSelect" disabled class="glass-input mt-3 w-full rounded-xl px-4 py-3.5 text-sm text-slate-200 disabled:opacity-40"><option value="">-- Select State First --</option></select></div>
-</div>
-<div class="glass-panel p-5 rounded-2xl flex flex-col gap-4 border-l-4 border-l-purple-500 glass-panel-interactive">
-<h2 class="text-xs font-bold uppercase tracking-widest text-purple-300 flex items-center gap-2"><i data-lucide="settings-2" class="w-4 h-4 text-purple-400"></i> 2. Analysis Parameters</h2>
-<div><label class="text-xs text-slate-400">Weather Condition</label><select id="weatherCondition" class="glass-input mt-2 w-full rounded-xl px-4 py-3 text-sm text-slate-200 bg-transparent"><option value="Auto">AUTO — Live Weather</option><option value="Good">GOOD — Favorable Conditions</option><option value="Normal">NORMAL — Typical Conditions</option><option value="Bad">BAD — Adverse Conditions</option><option value="Worst">WORST — Severe Conditions</option></select><p class="text-[10px] text-slate-500 mt-2">AUTO will use live weather when connected. Manual conditions support judge scenario testing.</p></div>
-<div><label class="text-xs text-slate-400">Equipment Risk Mode</label><select id="equipmentMode" class="glass-input mt-2 w-full rounded-xl px-4 py-3 text-sm text-slate-200 bg-transparent"><option value="Auto">AUTO — ML Prediction</option><option value="Low">LOW — Simulation</option><option value="Medium">MEDIUM — Simulation</option><option value="High">HIGH — Simulation</option></select><p class="text-[10px] text-slate-500 mt-2">AUTO uses the equipment-risk ML model. Manual modes support scenario simulation.</p></div>
-<div class="grid grid-cols-2 gap-3"><div class="bg-black/50 border border-white/10 p-3.5 rounded-xl"><span class="text-[10px] text-slate-400 font-semibold">LATITUDE</span><span id="latDisplay" class="block mt-1 font-mono text-base font-bold text-emerald-400">--</span></div><div class="bg-black/50 border border-white/10 p-3.5 rounded-xl"><span class="text-[10px] text-slate-400 font-semibold">LONGITUDE</span><span id="lngDisplay" class="block mt-1 font-mono text-base font-bold text-emerald-400">--</span></div></div>
-<button id="runBtn" disabled class="btn-shine w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 font-bold text-sm tracking-widest uppercase text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2.5"><i data-lucide="play" class="w-4 h-4 fill-current"></i> Analyze Mining Risk</button>
-</div>
-<div class="glass-panel p-5 rounded-2xl flex flex-col gap-3 flex-grow min-h-[200px]"><div class="flex items-center justify-between"><h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><i data-lucide="terminal" class="w-4 h-4 text-purple-400"></i> AI Analysis Terminal</h2><span class="w-2 h-2 rounded-full bg-emerald-400"></span></div><div id="logConsole" class="bg-black/80 rounded-xl p-4 font-mono text-[11px] text-slate-300 space-y-2 h-44 overflow-y-auto border border-white/10"><p class="text-slate-500">[System Ready]: Select a state and mining district to begin risk analysis...</p></div></div>
-</section>
-<section class="lg:col-span-7 flex flex-col gap-5">
-<div class="glass-panel p-5 rounded-2xl relative overflow-hidden min-h-[390px] flex flex-col border border-white/10"><div class="flex items-center justify-between z-10 bg-black/40 p-3 rounded-xl backdrop-blur-md border border-white/10"><div class="flex items-center gap-3"><span class="p-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30"><i data-lucide="radar" class="w-4 h-4"></i></span><div><h3 class="text-sm font-bold text-slate-100" id="mapTitle">Mining Area Intelligence View</h3><p class="text-[11px] text-slate-400" id="mapSubtitle">Environmental, weather and operational risk monitoring</p></div></div><span id="mapBadge" class="text-xs px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 font-mono">Idle</span></div><div id="mapContainer"
-     class="flex-grow min-h-[500px] mt-4 bg-black/40 rounded-xl border border-white/5 relative overflow-hidden">
+                        <span class="status-dot"></span>
 
-    <div id="mapPlaceholder"
-         class="absolute inset-0 flex items-center justify-center text-center p-8">
+                        <span class="text-xs text-gray-300">
+                            AI Systems Ready
+                        </span>
 
-        <div>
-            <div class="p-4 inline-flex rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400">
-                <i data-lucide="globe" class="w-10 h-10 animate-pulse"></i>
+                    </div>
+
+                </div>
+
             </div>
 
-            <h4 class="text-sm font-semibold text-slate-300 mt-4">
-                Awaiting Mining Region
-            </h4>
-
-            <p class="text-xs text-slate-500 mt-2 max-w-sm">
-                Select a mining district and run the analysis to generate
-                the Sentinel-2 manganese prospecting map.
-            </p>
         </div>
 
-    </div>
+    </header>
+
+
+    <!-- =====================================================
+         MAIN CONTENT
+    ====================================================== -->
+
+    <main class="max-w-[1600px] mx-auto px-5 lg:px-8 py-8">
+
+        <!-- Hero -->
+
+        <section class="mb-8">
+
+            <div class="max-w-4xl">
+
+                <div class="flex items-center gap-2 mb-3">
+
+                    <span class="text-xs uppercase tracking-[0.25em]
+                                 text-purple-400">
+                        Space • Weather • AI
+                    </span>
+
+                    <span class="h-px w-12 bg-purple-500/30"></span>
+
+                </div>
+
+                <h2 class="text-3xl md:text-5xl font-bold leading-tight">
+
+                    Space, Weather &
+
+                    <span class="gradient-text">
+                        AI-Powered
+                    </span>
+
+                    Manganese Production Risk Platform
+
+                </h2>
+
+                <p class="mt-4 text-gray-400 max-w-3xl leading-relaxed">
+
+                    GeoMn combines historical mining production,
+                    weather conditions, equipment reliability,
+                    machine learning and satellite-based analysis
+                    to identify manganese production risks and
+                    generate operational recommendations.
+
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             INPUT PANEL
+        ================================================== -->
+
+        <section class="glass rounded-3xl p-5 md:p-7 mb-7 purple-glow">
+
+            <div class="flex flex-col md:flex-row md:items-center
+                        md:justify-between gap-4 mb-6">
+
+                <div>
+
+                    <div class="flex items-center gap-2 mb-1">
+
+                        <i data-lucide="sliders-horizontal"
+                           class="w-5 h-5 text-purple-300"></i>
+
+                        <h3 class="font-semibold text-lg">
+                            Mining Region & Scenario
+                        </h3>
+
+                    </div>
+
+                    <p class="text-sm text-gray-500">
+                        Select a mining region and environmental scenario.
+                    </p>
+
+                </div>
+
+                <div id="backendStatus"
+                     class="text-xs text-gray-500">
+                    Checking GeoMn backend...
+                </div>
+
+            </div>
+
+
+            <div class="grid grid-cols-1 md:grid-cols-2
+                        lg:grid-cols-4 gap-4">
+
+                <!-- State -->
+
+                <div>
+
+                    <label class="block text-xs uppercase
+                                  tracking-wider text-gray-500 mb-2">
+                        State
+                    </label>
+
+                    <select id="stateSelect">
+                        <option value="">
+                            Select State
+                        </option>
+                    </select>
+
+                </div>
+
+
+                <!-- District -->
+
+                <div>
+
+                    <label class="block text-xs uppercase
+                                  tracking-wider text-gray-500 mb-2">
+                        District
+                    </label>
+
+                    <select id="districtSelect" disabled>
+
+                        <option value="">
+                            Select District
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- Weather -->
+
+                <div>
+
+                    <label class="block text-xs uppercase
+                                  tracking-wider text-gray-500 mb-2">
+                        Weather Scenario
+                    </label>
+
+                    <select id="weatherSelect"
+                            class="w-full px-4 py-3.5 rounded-xl
+                                   bg-black/30 border border-white/10
+                                   text-white">
+
+                        <option value="Auto">
+                            Auto — Live Weather
+                        </option>
+
+                        <option value="Good">
+                            Good
+                        </option>
+
+                        <option value="Normal">
+                            Normal
+                        </option>
+
+                        <option value="Bad">
+                            Bad
+                        </option>
+
+                        <option value="Worst">
+                            Worst
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- Equipment -->
+
+                <div>
+
+                    <label class="block text-xs uppercase
+                                  tracking-wider text-gray-500 mb-2">
+                        Equipment Condition
+                    </label>
+
+                    <select id="equipmentSelect"
+                            class="w-full px-4 py-3.5 rounded-xl
+                                   bg-black/30 border border-white/10
+                                   text-white">
+
+                        <option value="Auto">
+                            Auto — ML Prediction
+                        </option>
+
+                        <option value="Low">
+                            Low Risk Simulation
+                        </option>
+
+                        <option value="Medium">
+                            Medium Risk Simulation
+                        </option>
+
+                        <option value="High">
+                            High Risk Simulation
+                        </option>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+
+            <!-- Run Button -->
+
+            <div class="mt-5 flex justify-end">
+
+                <button id="runAnalysisBtn"
+                        onclick="runAnalysis()"
+                        class="w-full md:w-auto
+                               px-7 py-3.5
+                               rounded-xl
+                               bg-purple-600 hover:bg-purple-500
+                               transition
+                               font-semibold
+                               flex items-center
+                               justify-center
+                               gap-2
+                               shadow-lg shadow-purple-900/20">
+
+                    <i data-lucide="play"
+                       class="w-4 h-4"></i>
+
+                    Run GeoMn Analysis
+
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             STATUS LOG
+        ================================================== -->
+
+        <section id="activitySection"
+                 class="glass rounded-2xl p-5 mb-7 hidden">
+
+            <div class="flex items-center gap-2 mb-3">
+
+                <i data-lucide="terminal"
+                   class="w-4 h-4 text-purple-300"></i>
+
+                <span class="text-sm font-semibold">
+                    System Activity
+                </span>
+
+            </div>
+
+            <div id="activityLog"
+                 class="font-mono text-xs text-gray-400 space-y-1">
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             METRIC CARDS
+        ================================================== -->
+
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-7">
+
+            <!-- Shortfall -->
+
+            <div class="metric-card glass rounded-3xl p-6">
+
+                <div class="flex items-center justify-between">
+
+                    <div class="w-11 h-11 rounded-xl
+                                bg-red-500/10
+                                border border-red-400/10
+                                flex items-center justify-center">
+
+                        <i data-lucide="trending-down"
+                           class="w-5 h-5 text-red-300"></i>
+
+                    </div>
+
+                    <span class="text-[10px] uppercase
+                                 tracking-wider text-gray-500">
+                        Production
+                    </span>
+
+                </div>
+
+                <div class="mt-5">
+
+                    <p class="text-sm text-gray-500">
+                        Production Shortfall Risk
+                    </p>
+
+                    <h3 id="shortfallRisk"
+                        class="text-3xl font-bold mt-1">
+                        —
+                    </h3>
+
+                    <p id="productionSource"
+                       class="text-xs text-gray-500 mt-2">
+                        Awaiting analysis
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- Equipment -->
+
+            <div class="metric-card glass rounded-3xl p-6">
+
+                <div class="flex items-center justify-between">
+
+                    <div class="w-11 h-11 rounded-xl
+                                bg-orange-500/10
+                                border border-orange-400/10
+                                flex items-center justify-center">
+
+                        <i data-lucide="cog"
+                           class="w-5 h-5 text-orange-300"></i>
+
+                    </div>
+
+                    <span class="text-[10px] uppercase
+                                 tracking-wider text-gray-500">
+                        Equipment
+                    </span>
+
+                </div>
+
+                <div class="mt-5">
+
+                    <p class="text-sm text-gray-500">
+                        Equipment Breakdown Risk
+                    </p>
+
+                    <h3 id="equipmentRisk"
+                        class="text-3xl font-bold mt-1">
+                        —
+                    </h3>
+
+                    <p id="equipmentSource"
+                       class="text-xs text-gray-500 mt-2">
+                        Awaiting analysis
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- Weather -->
+
+            <div class="metric-card glass rounded-3xl p-6">
+
+                <div class="flex items-center justify-between">
+
+                    <div class="w-11 h-11 rounded-xl
+                                bg-blue-500/10
+                                border border-blue-400/10
+                                flex items-center justify-center">
+
+                        <i data-lucide="cloud-rain"
+                           class="w-5 h-5 text-blue-300"></i>
+
+                    </div>
+
+                    <span class="text-[10px] uppercase
+                                 tracking-wider text-gray-500">
+                        Environment
+                    </span>
+
+                </div>
+
+                <div class="mt-5">
+
+                    <p class="text-sm text-gray-500">
+                        Weather Stress
+                    </p>
+
+                    <h3 id="weatherStress"
+                        class="text-3xl font-bold mt-1">
+                        —
+                    </h3>
+
+                    <p id="weatherValues"
+                       class="text-xs text-gray-500 mt-2">
+                        Awaiting analysis
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             PRODUCTION + STRESS
+        ================================================== -->
+
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-7">
+
+            <!-- Production -->
+
+            <div class="glass rounded-3xl p-6">
+
+                <div class="flex items-center gap-3 mb-6">
+
+                    <div class="w-10 h-10 rounded-xl
+                                bg-purple-500/10
+                                flex items-center justify-center">
+
+                        <i data-lucide="factory"
+                           class="w-5 h-5 text-purple-300"></i>
+
+                    </div>
+
+                    <div>
+
+                        <h3 class="font-semibold">
+                            Production Analysis
+                        </h3>
+
+                        <p class="text-xs text-gray-500">
+                            Historical production baseline
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="grid grid-cols-2 gap-4">
+
+                    <div class="glass-soft rounded-2xl p-4">
+
+                        <p class="text-xs text-gray-500">
+                            Production Used
+                        </p>
+
+                        <p id="productionValue"
+                           class="text-xl font-semibold mt-2">
+                            —
+                        </p>
+
+                        <p class="text-xs text-gray-600">
+                            tonnes
+                        </p>
+
+                    </div>
+
+
+                    <div class="glass-soft rounded-2xl p-4">
+
+                        <p class="text-xs text-gray-500">
+                            Historical Year
+                        </p>
+
+                        <p id="productionYear"
+                           class="text-xl font-semibold mt-2">
+                            —
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Stress -->
+
+            <div class="glass rounded-3xl p-6">
+
+                <div class="flex items-center gap-3 mb-6">
+
+                    <div class="w-10 h-10 rounded-xl
+                                bg-blue-500/10
+                                flex items-center justify-center">
+
+                        <i data-lucide="activity"
+                           class="w-5 h-5 text-blue-300"></i>
+
+                    </div>
+
+                    <div>
+
+                        <h3 class="font-semibold">
+                            Stress Analysis
+                        </h3>
+
+                        <p class="text-xs text-gray-500">
+                            Environmental & production stress
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="space-y-4">
+
+                    <div>
+
+                        <div class="flex justify-between text-xs mb-1">
+
+                            <span class="text-gray-500">
+                                Production Stress
+                            </span>
+
+                            <span id="productionStressText">
+                                —
+                            </span>
+
+                        </div>
+
+                        <div class="h-2 bg-white/5 rounded-full overflow-hidden">
+
+                            <div id="productionStressBar"
+                                 class="h-full bg-purple-500 rounded-full"
+                                 style="width:0%">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div>
+
+                        <div class="flex justify-between text-xs mb-1">
+
+                            <span class="text-gray-500">
+                                Temperature Stress
+                            </span>
+
+                            <span id="temperatureStressText">
+                                —
+                            </span>
+
+                        </div>
+
+                        <div class="h-2 bg-white/5 rounded-full overflow-hidden">
+
+                            <div id="temperatureStressBar"
+                                 class="h-full bg-purple-500 rounded-full"
+                                 style="width:0%">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div>
+
+                        <div class="flex justify-between text-xs mb-1">
+
+                            <span class="text-gray-500">
+                                Rainfall Stress
+                            </span>
+
+                            <span id="rainfallStressText">
+                                —
+                            </span>
+
+                        </div>
+
+                        <div class="h-2 bg-white/5 rounded-full overflow-hidden">
+
+                            <div id="rainfallStressBar"
+                                 class="h-full bg-purple-500 rounded-full"
+                                 style="width:0%">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div>
+
+                        <div class="flex justify-between text-xs mb-1">
+
+                            <span class="text-gray-500">
+                                Humidity Stress
+                            </span>
+
+                            <span id="humidityStressText">
+                                —
+                            </span>
+
+                        </div>
+
+                        <div class="h-2 bg-white/5 rounded-full overflow-hidden">
+
+                            <div id="humidityStressBar"
+                                 class="h-full bg-purple-500 rounded-full"
+                                 style="width:0%">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             AI RECOMMENDATION
+        ================================================== -->
+
+        <section class="glass rounded-3xl p-6 mb-7">
+
+            <div class="flex flex-col md:flex-row
+                        md:items-center
+                        md:justify-between
+                        gap-4 mb-6">
+
+                <div class="flex items-center gap-3">
+
+                    <div class="w-11 h-11 rounded-xl
+                                bg-purple-500/10
+                                border border-purple-400/10
+                                flex items-center justify-center">
+
+                        <i data-lucide="brain-circuit"
+                           class="w-5 h-5 text-purple-300"></i>
+
+                    </div>
+
+                    <div>
+
+                        <h3 class="font-semibold text-lg">
+                            AI Operational Recommendations
+                        </h3>
+
+                        <p id="recommendationSource"
+                           class="text-xs text-gray-500">
+                            Awaiting analysis
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <div id="currentRiskBadge"
+                     class="px-4 py-2 rounded-full
+                            text-xs font-semibold
+                            bg-white/5 text-gray-400">
+                    No Risk Assessment
+                </div>
+
+            </div>
+
+
+            <!-- Gemini Recommendation -->
+
+            <div id="geminiRecommendation"
+                 class="glass-soft rounded-2xl p-5 mb-5 hidden">
+
+                <div class="flex items-center gap-2 mb-3">
+
+                    <i data-lucide="sparkles"
+                       class="w-4 h-4 text-purple-300"></i>
+
+                    <span class="text-sm font-semibold">
+                        AI Generated Insight
+                    </span>
+
+                </div>
+
+                <div id="geminiText"
+                     class="text-sm text-gray-300
+                            leading-relaxed whitespace-pre-line">
+                </div>
+
+            </div>
+
+
+            <!-- Top Factors -->
+
+            <div class="mb-6">
+
+                <h4 class="text-sm font-semibold mb-3">
+                    Top Risk Factors
+                </h4>
+
+                <div id="riskFactors"
+                     class="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+                    <div class="glass-soft rounded-xl p-4 text-sm text-gray-500">
+                        Run an analysis to identify risk factors.
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Recommendations -->
+
+            <div>
+
+                <h4 class="text-sm font-semibold mb-3">
+                    Recommended Actions
+                </h4>
+
+                <div id="recommendations"
+                     class="space-y-4">
+
+                    <div class="glass-soft rounded-xl p-5 text-sm text-gray-500">
+                        Recommendations will appear here after analysis.
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             SENTINEL-2 MAP
+        ================================================== -->
+
+        <section class="glass rounded-3xl overflow-hidden mb-7">
+
+            <div class="p-6 border-b border-white/5">
+
+                <div class="flex flex-col md:flex-row
+                            md:items-center
+                            md:justify-between gap-4">
+
+                    <div class="flex items-center gap-3">
+
+                        <div class="w-11 h-11 rounded-xl
+                                    bg-green-500/10
+                                    flex items-center justify-center">
+
+                            <i data-lucide="satellite"
+                               class="w-5 h-5 text-green-300"></i>
+
+                        </div>
+
+                        <div>
+
+                            <h3 class="font-semibold text-lg">
+                                Sentinel-2 Manganese Prospecting Map
+                            </h3>
+
+                            <p class="text-xs text-gray-500">
+                                Satellite-based spatial analysis
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                    <span id="mapStatus"
+                          class="text-xs text-gray-500">
+                        Map waiting for analysis
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="h-[500px] bg-black/30">
+
+                <iframe
+                    id="mapFrame"
+                    src="/map"
+                    class="w-full h-full border-0"
+                    title="GeoMn Manganese Map">
+                </iframe>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             FOOTER
+        ================================================== -->
+
+        <footer class="py-8 text-center">
+
+            <p class="text-xs text-gray-600">
+
+                GeoMn • AI/ML Manganese Mining Intelligence Platform
+
+            </p>
+
+            <p class="text-[10px] text-gray-700 mt-2">
+
+                Production Shortfall • Equipment Reliability •
+                Weather Stress • Satellite Analysis
+
+            </p>
+
+        </footer>
+
+    </main>
 
 </div>
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-<div class="glass-panel p-4 rounded-2xl"><span class="text-xs text-slate-400 font-medium flex items-center gap-2"><i data-lucide="alert-triangle" class="w-4 h-4 text-purple-400"></i> Shortfall Risk</span><div class="mt-3"><span id="shortfallVal" class="text-2xl font-black font-mono text-purple-400">--</span><p id="shortfallSub" class="text-[10px] text-slate-500 mt-1">Low / Medium / High classification</p></div></div>
-<div class="glass-panel p-4 rounded-2xl"><span class="text-xs text-slate-400 font-medium flex items-center gap-2"><i data-lucide="cpu" class="w-4 h-4 text-blue-400"></i> Equipment Risk</span><div class="mt-3"><span id="equipmentVal" class="text-2xl font-black font-mono text-blue-400">-- %</span><p id="equipmentSub" class="text-[10px] text-slate-500 mt-1">Auto ML / Manual simulation</p></div></div>
-<div class="glass-panel p-4 rounded-2xl"><span class="text-xs text-slate-400 font-medium flex items-center gap-2"><i data-lucide="cloud-rain" class="w-4 h-4 text-emerald-400"></i> Weather Stress</span><div class="mt-3"><span id="weatherVal" class="text-2xl font-black font-mono text-emerald-400">--</span><p id="weatherSub" class="text-[10px] text-slate-500 mt-1">Environmental stress indicator</p></div></div>
-</div>
-<div class="glass-panel p-5 rounded-2xl flex flex-col gap-3 glass-panel-interactive"><h3 class="text-xs font-bold uppercase tracking-widest text-slate-300 flex items-center gap-2"><i data-lucide="brain" class="w-4 h-4 text-purple-400"></i> AI Risk Analysis & Recommendation</h3><p id="reportText" class="text-xs text-slate-400 leading-relaxed italic bg-black/40 p-4 rounded-xl border border-white/5">Select a mining region. The final backend will explain the predicted production shortfall risk using production stress, equipment risk and environmental conditions.</p></div>
-</section></main>
+
+
+<!-- =========================================================
+     JAVASCRIPT
+========================================================= -->
+
 <script>
-lucide.createIcons();
-const regionData={"Andhra Pradesh": [{"name": "Vizianagaram", "lat": 18.30631, "lng": 83.49997}], "Karnataka": [{"name": "Ballari", "lat": 15.09, "lng": 76.55}, {"name": "Chitradurga", "lat": 14.23, "lng": 76.4}, {"name": "Davanagere", "lat": 14.47, "lng": 75.92}, {"name": "Tumakuru", "lat": 13.34, "lng": 77.1}], "Madhya Pradesh": [{"name": "Balaghat", "lat": 21.81869, "lng": 80.23573}, {"name": "Chhindwara", "lat": 22.06, "lng": 78.94}, {"name": "Jabalpur", "lat": 23.18, "lng": 79.95}, {"name": "Jhabua", "lat": 22.77, "lng": 74.59}], "Maharashtra": [{"name": "Bhandara", "lat": 21.32335, "lng": 79.75}, {"name": "Nagpur", "lat": 21.30239, "lng": 79.32317}], "Odisha": [{"name": "Keonjhar", "lat": 22.07, "lng": 85.406}, {"name": "Rayagada", "lat": 19.21667, "lng": 83.21667}, {"name": "Sundargarh", "lat": 22.12333, "lng": 84.02667}], "Rajasthan": [{"name": "Banswara", "lat": 23.55, "lng": 74.45}], "Telangana": [{"name": "Adilabad", "lat": 19.65732, "lng": 78.53032}]};
-const stateSelect=document.getElementById('stateSelect'), districtSelect=document.getElementById('districtSelect'), runBtn=document.getElementById('runBtn');
-const logConsole=document.getElementById('logConsole');
-Object.keys(regionData).sort().forEach(s=>stateSelect.add(new Option(s,s)));
-function log(msg,cls='text-slate-300'){const p=document.createElement('p');p.className=cls;p.textContent='> '+msg;logConsole.appendChild(p);logConsole.scrollTop=logConsole.scrollHeight;}
-stateSelect.addEventListener('change',()=>{districtSelect.innerHTML=''; districtSelect.add(new Option('-- Select District --','')); const arr=regionData[stateSelect.value]||[]; arr.forEach(d=>districtSelect.add(new Option(d.name,d.name))); districtSelect.disabled=!stateSelect.value; runBtn.disabled=true; document.getElementById('latDisplay').textContent='--';document.getElementById('lngDisplay').textContent='--';logConsole.innerHTML=''; if(stateSelect.value) log('State selected: '+stateSelect.value,'text-purple-300');});
-districtSelect.addEventListener('change',()=>{const d=(regionData[stateSelect.value]||[]).find(x=>x.name===districtSelect.value); if(!d) return; document.getElementById('latDisplay').textContent=d.lat.toFixed(4)+'° N';document.getElementById('lngDisplay').textContent=d.lng.toFixed(4)+'° E';runBtn.disabled=false;log('District selected: '+d.name,'text-emerald-300');log('Coordinates loaded automatically.','text-slate-400');});
-runBtn.addEventListener('click', async () => {
 
-    const state = stateSelect.value;
-    const district = districtSelect.value;
-    // Get selected district coordinates
-const selectedDistrict =
-    (regionData[state] || []).find(
-        x => x.name === district
+    // ========================================================
+    // INITIALIZE ICONS
+    // ========================================================
+
+    lucide.createIcons();
+
+
+    // ========================================================
+    // REGION DATA
+    // ========================================================
+
+    const regionData = {
+
+        "Andhra Pradesh": [
+            "Vizianagaram"
+        ],
+
+        "Karnataka": [
+            "Ballari",
+            "Chitradurga",
+            "Davanagere",
+            "Tumakuru"
+        ],
+
+        "Madhya Pradesh": [
+            "Balaghat",
+            "Chhindwara",
+            "Jabalpur",
+            "Jhabua"
+        ],
+
+        "Maharashtra": [
+            "Bhandara",
+            "Nagpur"
+        ],
+
+        "Odisha": [
+            "Keonjhar",
+            "Rayagada",
+            "Sundargarh"
+        ],
+
+        "Rajasthan": [
+            "Banswara"
+        ],
+
+        "Telangana": [
+            "Adilabad"
+        ]
+
+    };
+
+
+    // ========================================================
+    // DOM ELEMENTS
+    // ========================================================
+
+    const stateSelect =
+        document.getElementById("stateSelect");
+
+    const districtSelect =
+        document.getElementById("districtSelect");
+
+    const weatherSelect =
+        document.getElementById("weatherSelect");
+
+    const equipmentSelect =
+        document.getElementById("equipmentSelect");
+
+    const backendStatus =
+        document.getElementById("backendStatus");
+
+    const runAnalysisBtn =
+        document.getElementById("runAnalysisBtn");
+
+    const activitySection =
+        document.getElementById("activitySection");
+
+    const activityLog =
+        document.getElementById("activityLog");
+
+
+    // ========================================================
+    // LOAD STATES
+    // ========================================================
+
+    function loadStates() {
+
+        stateSelect.innerHTML =
+            '<option value="">Select State</option>';
+
+        Object.keys(regionData)
+            .sort()
+            .forEach(state => {
+
+                const option =
+                    document.createElement("option");
+
+                option.value = state;
+                option.textContent = state;
+
+                stateSelect.appendChild(option);
+
+            });
+
+    }
+
+
+    // ========================================================
+    // STATE CHANGE
+    // ========================================================
+
+    stateSelect.addEventListener(
+        "change",
+        function () {
+
+            const state = this.value;
+
+            districtSelect.innerHTML =
+                '<option value="">Select District</option>';
+
+            if (!state) {
+
+                districtSelect.disabled = true;
+
+                return;
+            }
+
+            const districts =
+                regionData[state] || [];
+
+            districts.forEach(district => {
+
+                const option =
+                    document.createElement("option");
+
+                option.value = district;
+                option.textContent = district;
+
+                districtSelect.appendChild(option);
+
+            });
+
+            districtSelect.disabled =
+                districts.length === 0;
+
+        }
     );
 
-if (!selectedDistrict) {
-    throw new Error("District coordinates not found.");
-}
 
-const lat = selectedDistrict.lat;
-const lng = selectedDistrict.lng;
+    // ========================================================
+    // ACTIVITY LOG
+    // ========================================================
 
-    const weather = document
-        .getElementById('weatherCondition')
-        .value
-        .toLowerCase();
+    function logActivity(message) {
 
-    const equipmentMode = document
-        .getElementById('equipmentMode')
-        .value;
+        activitySection.classList.remove("hidden");
 
+        const item =
+            document.createElement("div");
 
-    log(
-        'Connecting to GeoMn AI backend...',
-        'text-purple-300'
-    );
+        item.textContent =
+            "> " + message;
 
-    log(
-        'Sending mining region and weather data...',
-        'text-slate-400'
-    );
+        activityLog.appendChild(item);
+
+        activityLog.scrollTop =
+            activityLog.scrollHeight;
+
+    }
 
 
-    try {
+    function clearActivityLog() {
 
-        // ==========================================
-        // CALL FASTAPI BACKEND
-        // ==========================================
+        activityLog.innerHTML = "";
 
-        const response = await fetch(
+    }
 
-            'predict',
 
-            {
+    // ========================================================
+    // BACKEND HEALTH CHECK
+    // ========================================================
 
-                method: 'POST',
+    async function checkBackend() {
 
-                headers: {
+        try {
 
-                    'Content-Type': 'application/json'
+            const response =
+                await fetch("/health");
 
-                },
+            if (!response.ok) {
 
-                body: JSON.stringify({
-
-                    state: state,
-
-                    district: district,
-                    
-                    weather_condition: weather,
-                    equipment_mode: equipmentMode
-                })
+                throw new Error(
+                    "Backend unavailable"
+                );
 
             }
 
+            const data =
+                await response.json();
+
+            backendStatus.textContent =
+                "GeoMn backend connected";
+
+            backendStatus.className =
+                "text-xs text-green-400";
+
+            console.log(
+                "GeoMn backend:",
+                data
+            );
+
+        } catch (error) {
+
+            backendStatus.textContent =
+                "Backend connection unavailable";
+
+            backendStatus.className =
+                "text-xs text-red-400";
+
+            console.error(error);
+
+        }
+
+    }
+
+
+    // ========================================================
+    // RISK BADGE
+    // ========================================================
+
+    function setRiskBadge(risk) {
+
+        const badge =
+            document.getElementById(
+                "currentRiskBadge"
+            );
+
+        badge.className =
+            "px-4 py-2 rounded-full text-xs font-semibold";
+
+        if (risk === "High") {
+
+            badge.classList.add(
+                "bg-red-500/10",
+                "text-red-300",
+                "border",
+                "border-red-500/20"
+            );
+
+            badge.textContent =
+                "HIGH SHORTFALL RISK";
+
+        }
+
+        else if (risk === "Medium") {
+
+            badge.classList.add(
+                "bg-yellow-500/10",
+                "text-yellow-300",
+                "border",
+                "border-yellow-500/20"
+            );
+
+            badge.textContent =
+                "MEDIUM SHORTFALL RISK";
+
+        }
+
+        else if (risk === "Low") {
+
+            badge.classList.add(
+                "bg-green-500/10",
+                "text-green-300",
+                "border",
+                "border-green-500/20"
+            );
+
+            badge.textContent =
+                "LOW SHORTFALL RISK";
+
+        }
+
+        else {
+
+            badge.classList.add(
+                "bg-white/5",
+                "text-gray-400"
+            );
+
+            badge.textContent =
+                "UNKNOWN RISK";
+
+        }
+
+    }
+
+
+    // ========================================================
+    // UPDATE STRESS BAR
+    // ========================================================
+
+    function updateStressBar(
+        barId,
+        textId,
+        value
+    ) {
+
+        const percentage =
+            Math.max(
+                0,
+                Math.min(
+                    100,
+                    Number(value) * 100
+                )
+            );
+
+        document.getElementById(barId)
+            .style.width =
+            percentage + "%";
+
+        document.getElementById(textId)
+            .textContent =
+            percentage.toFixed(1) + "%";
+
+    }
+
+
+    // ========================================================
+    // DISPLAY RECOMMENDATIONS
+    // ========================================================
+
+    function displayRecommendations(
+        recommendationData
+    ) {
+
+        const container =
+            document.getElementById(
+                "recommendations"
+            );
+
+        container.innerHTML = "";
+
+        if (
+            !recommendationData ||
+            !recommendationData.recommendations ||
+            recommendationData.recommendations.length === 0
+        ) {
+
+            container.innerHTML = `
+                <div class="glass-soft rounded-xl p-5 text-sm text-gray-500">
+                    No specific recommendations available.
+                </div>
+            `;
+
+            return;
+        }
+
+
+        recommendationData.recommendations
+            .forEach(rec => {
+
+                const priority =
+                    String(
+                        rec.priority || "Low"
+                    ).toLowerCase();
+
+                const card =
+                    document.createElement("div");
+
+                card.className =
+                    `glass-soft rounded-2xl p-5 recommendation-card ${priority}`;
+
+
+                const actions =
+                    Array.isArray(
+                        rec.recommended_actions
+                    )
+                        ? rec.recommended_actions
+                        : [];
+
+
+                const actionHTML =
+                    actions.map(
+                        action =>
+                            `<li>${escapeHTML(action)}</li>`
+                    ).join("");
+
+
+                card.innerHTML = `
+
+                    <div class="flex flex-col md:flex-row
+                                md:items-start
+                                md:justify-between gap-3">
+
+                        <div>
+
+                            <div class="flex items-center gap-2">
+
+                                <span class="text-[10px]
+                                             uppercase
+                                             tracking-wider
+                                             px-2 py-1
+                                             rounded-full
+                                             bg-white/5">
+
+                                    ${escapeHTML(
+                                        rec.priority || "Low"
+                                    )}
+
+                                </span>
+
+                                <h5 class="font-semibold">
+                                    ${escapeHTML(
+                                        rec.title || "Operational Recommendation"
+                                    )}
+                                </h5>
+
+                            </div>
+
+                            <p class="text-xs
+                                      text-gray-500
+                                      mt-2">
+
+                                ${escapeHTML(
+                                    rec.issue_detected || ""
+                                )}
+
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <p class="text-sm
+                              text-gray-400
+                              leading-relaxed
+                              mt-4">
+
+                        ${escapeHTML(
+                            rec.why_it_matters || ""
+                        )}
+
+                    </p>
+
+
+                    ${
+                        actions.length
+                        ? `
+                            <div class="mt-4">
+
+                                <p class="text-xs
+                                          uppercase
+                                          tracking-wider
+                                          text-gray-600
+                                          mb-2">
+
+                                    Recommended Actions
+
+                                </p>
+
+                                <ul class="list-disc
+                                           list-inside
+                                           space-y-2
+                                           text-sm
+                                           text-gray-300">
+
+                                    ${actionHTML}
+
+                                </ul>
+
+                            </div>
+                        `
+                        : ""
+                    }
+
+                `;
+
+                container.appendChild(card);
+
+            });
+
+    }
+
+
+    // ========================================================
+    // DISPLAY RISK FACTORS
+    // ========================================================
+
+    function displayRiskFactors(
+        factors
+    ) {
+
+        const container =
+            document.getElementById(
+                "riskFactors"
+            );
+
+        container.innerHTML = "";
+
+        if (
+            !factors ||
+            factors.length === 0
+        ) {
+
+            container.innerHTML = `
+                <div class="glass-soft rounded-xl p-4 text-sm text-gray-500">
+                    No dominant risk factors identified.
+                </div>
+            `;
+
+            return;
+        }
+
+
+        factors.forEach(
+            (factor, index) => {
+
+                const value =
+                    Number(
+                        factor.severity_score || 0
+                    ) * 100;
+
+                const card =
+                    document.createElement("div");
+
+                card.className =
+                    "glass-soft rounded-xl p-4";
+
+                card.innerHTML = `
+
+                    <div class="flex items-center
+                                justify-between gap-3">
+
+                        <span class="text-sm text-gray-300">
+
+                            ${index + 1}.
+                            ${escapeHTML(
+                                factor.factor || "Risk Factor"
+                            )}
+
+                        </span>
+
+                        <span class="text-sm
+                                     font-semibold
+                                     text-purple-300">
+
+                            ${value.toFixed(1)}%
+
+                        </span>
+
+                    </div>
+
+                    <div class="h-1.5
+                                bg-white/5
+                                rounded-full
+                                mt-3
+                                overflow-hidden">
+
+                        <div
+                            class="h-full
+                                   bg-purple-500
+                                   rounded-full"
+                            style="width:${Math.min(
+                                100,
+                                value
+                            )}%">
+                        </div>
+
+                    </div>
+
+                `;
+
+                container.appendChild(card);
+
+            }
         );
 
+    }
 
-        // ==========================================
-        // CHECK BACKEND RESPONSE
-        // ==========================================
 
-        if (!response.ok) {
+    // ========================================================
+    // DISPLAY GEMINI
+    // ========================================================
 
-            throw new Error(
-                'Backend returned error: ' +
-                response.status
+    function displayGeminiRecommendation(
+        text
+    ) {
+
+        const container =
+            document.getElementById(
+                "geminiRecommendation"
             );
+
+        const textElement =
+            document.getElementById(
+                "geminiText"
+            );
+
+        if (!text) {
+
+            container.classList.add("hidden");
+
+            textElement.textContent = "";
+
+            return;
+        }
+
+        container.classList.remove("hidden");
+
+        textElement.textContent =
+            text;
+
+    }
+
+
+    // ========================================================
+    // ESCAPE HTML
+    // ========================================================
+
+    function escapeHTML(value) {
+
+        const div =
+            document.createElement("div");
+
+        div.textContent =
+            String(value ?? "");
+
+        return div.innerHTML;
+
+    }
+
+
+    // ========================================================
+    // RUN ANALYSIS
+    // ========================================================
+
+    async function runAnalysis() {
+
+        const state =
+            stateSelect.value;
+
+        const district =
+            districtSelect.value;
+
+        const weather =
+            weatherSelect.value;
+
+        const equipmentMode =
+            equipmentSelect.value;
+
+
+        if (!state) {
+
+            alert(
+                "Please select a state."
+            );
+
+            return;
 
         }
 
 
-        const result = await response.json();
-        // ==========================================
-// GENERATE SENTINEL-2 MANGANESE MAP
-// ==========================================
+        if (!district) {
 
-log(
-    'Generating Sentinel-2 manganese prospecting map...',
-    'text-purple-300'
-);
+            alert(
+                "Please select a district."
+            );
 
-// Create bounding box around selected district
-const west = lng - 0.05;
-const east = lng + 0.05;
-const south = lat - 0.05;
-const north = lat + 0.05;
+            return;
 
-const mapResponse = await fetch(
-    '/generate-map',
-    {
-        method: 'POST',
-
-        headers: {
-            'Content-Type': 'application/json'
-        },
-
-        body: JSON.stringify({
-            west: west,
-            south: south,
-            east: east,
-            north: north
-        })
-    }
-);
-
-if (!mapResponse.ok) {
-
-    const mapError =
-        await mapResponse.text();
-
-    throw new Error(
-        'Sentinel-2 map generation failed: ' +
-        mapError
-    );
-}
-
-const mapResult =
-    await mapResponse.json();
-
-console.log(
-    'Sentinel-2 Map Result:',
-    mapResult
-);
-
-log(
-    'Sentinel-2 manganese map generated successfully.',
-    'text-emerald-400'
-);
+        }
 
 
-        console.log(
-            'Backend Result:',
-            result
+        clearActivityLog();
+
+        runAnalysisBtn.disabled =
+            true;
+
+        runAnalysisBtn.classList.add(
+            "opacity-60",
+            "cursor-not-allowed"
         );
 
 
-        // ==========================================
-        // SHORTFALL RISK
-        // ==========================================
+        const originalButton =
+            runAnalysisBtn.innerHTML;
 
-        document.getElementById(
-            'shortfallVal'
-        ).textContent =
-            result.production_shortfall_risk || '--';
+        runAnalysisBtn.innerHTML = `
 
+            <i data-lucide="loader-circle"
+               class="w-4 h-4 animate-spin">
+            </i>
 
-        // ==========================================
-        // EQUIPMENT RISK
-        // ==========================================
+            Running Analysis...
 
-        let equipmentRisk =
-            result.equipment_breakdown_risk_percent;
-
-
-        
-      
-
-        // ==========================================
-        // WEATHER STRESS
-        // ==========================================
-
-        document.getElementById(
-            'weatherVal'
-        ).textContent =
-            result.stress_analysis
-                ? result.stress_analysis.weather_stress
-                : '--';
-
-
-        // ==========================================
-        // UPDATE MINING INTELLIGENCE PANEL
-        // ==========================================
-
-        document.getElementById(
-            'mapTitle'
-        ).textContent =
-            district + ' Mining Intelligence';
-
-
-        document.getElementById(
-            'mapSubtitle'
-        ).textContent =
-            'AI/ML production risk analysis completed';
-
-
-        document.getElementById(
-            'mapBadge'
-        ).textContent =
-            'COMPLETE';
-
-
-        document.getElementById(
-            'mapBadge'
-        ).className =
-            'text-xs px-3 py-1 rounded-full ' +
-            'bg-emerald-500/10 ' +
-            'border border-emerald-500/30 ' +
-            'text-emerald-400 font-mono';
-
-
-        // ==========================================
-        // UPDATE MAP / ANALYSIS AREA
-        // ==========================================
-
-        const production =
-            result.production_used
-                ? result.production_used.production_tonnes
-                : '--';
-
-
-        const year =
-            result.production_used
-                ? result.production_used.year
-                : '--';
-
-
-        const temperature =
-            result.weather_values
-                ? result.weather_values.temperature_c
-                : '--';
-
-
-        const rainfall =
-            result.weather_values
-                ? result.weather_values.rainfall_mm
-                : '--';
-// ==========================================
-// DISPLAY SENTINEL-2 MAP
-// ==========================================
-
-document.getElementById(
-    'mapPlaceholder'
-).innerHTML = `
-    <iframe
-        src="/map"
-        class="w-full h-full min-h-[500px] border-0 rounded-xl"
-        title="Sentinel-2 Manganese Map">
-    </iframe>
-`;
-
-    
-
-
-        // ==========================================
-        // AI RECOMMENDATIONS
-        // ==========================================
-
-        
-
-
-// ==========================================
-// UPDATE RISK CARDS AGAIN
-// ==========================================
-
-// SHORTFALL RISK
-
-const shortfallElement =
-    document.getElementById('shortfallVal');
-
-if (shortfallElement) {
-
-    shortfallElement.textContent =
-        result.production_shortfall_risk || '--';
-
-}
-
-
-// EQUIPMENT RISK
-
-const equipmentElement =
-    document.getElementById('equipmentVal');
-
-if (equipmentElement) {
-
-    equipmentElement.textContent =
-        Number(
-            result.equipment_breakdown_risk_percent || 0
-        ).toFixed(2) + ' %';
-
-}
-
-
-// WEATHER STRESS
-
-const weatherElement =
-    document.getElementById('weatherVal');
-
-if (
-    weatherElement &&
-    result.stress_analysis
-) {
-
-    weatherElement.textContent =
-        Number(
-            result.stress_analysis.weather_stress || 0
-        ).toFixed(3);
-
-}
-
-
-// ==========================================
-// AI RECOMMENDATIONS
-// ==========================================
-
-let report = '';
-
-
-// AI PREDICTION
-
-report +=
-    'AI Prediction: ' +
-    (result.production_shortfall_risk || 'Unknown') +
-    ' production shortfall risk.\n\n';
-
-
-// ==========================================
-// MAIN RISK FACTORS
-// ==========================================
-// ==========================================
-// OPENAI OR RULE-BASED RECOMMENDATIONS
-// ==========================================
-
-const aiRecommendation =
-    result.ai_recommendation;
-
-
-// ==========================================
-// OPENAI RECOMMENDATION
-// ==========================================
-
-if (aiRecommendation) {
-
-    report +=
-        '\nAI-Powered Recommendation:\n\n' +
-        aiRecommendation +
-        '\n';
-
-}
-
-
-// ==========================================
-// OFFLINE RULE-BASED FALLBACK
-// ==========================================
-
-else {
-
-    // ==========================================
-    // MAIN RISK FACTORS
-    // ==========================================
-
-    const factors =
-        result.ai_recommendations
-            ?.top_risk_factors;
-
-
-    if (Array.isArray(factors) && factors.length > 0) {
-
-        report += 'Main Risk Factors:\n';
-
-
-        factors.forEach((item, index) => {
-
-            const factorName =
-                item.factor ||
-                item.name ||
-                item.risk_factor ||
-                'Environmental Risk';
-
-
-            const score =
-                item.severity_score ??
-                item.score ??
-                item.risk_score ??
-                0;
-
-
-            report +=
-                (index + 1) +
-                '. ' +
-                factorName +
-                ' (Risk Level: ' +
-                Math.round(Number(score) * 100) +
-                '%)\n';
-
-        });
-
-    }
-
-
-    // ==========================================
-    // RECOMMENDED ACTIONS
-    // ==========================================
-
-    const recommendations =
-        result.ai_recommendations
-            ?.recommendations;
-
-
-    if (
-        Array.isArray(recommendations) &&
-        recommendations.length > 0
-    ) {
-
-        report += '\nRecommended Actions:\n';
-
-
-        recommendations.forEach((rec, index) => {
-
-
-            const factor =
-                rec.factor ||
-                rec.title ||
-                rec.category ||
-                rec.name ||
-                'Recommended Action';
-
-
-            const reason =
-                rec.reason ||
-                rec.description ||
-                rec.message ||
-                rec.explanation ||
-                'This area should be monitored based on the current risk analysis.';
-
-
-            report +=
-                '\n' +
-                (index + 1) +
-                '. ' +
-                factor +
-                '\n';
-
-
-            report +=
-                'Why: ' +
-                reason +
-                '\n';
-
-
-            const actions =
-                rec.actions ||
-                rec.recommended_actions ||
-                rec.action_steps;
-
-
-            if (
-                Array.isArray(actions) &&
-                actions.length > 0
-            ) {
-
-                actions.forEach(action => {
-
-                    report +=
-                        '• ' +
-                        action +
-                        '\n';
-
-                });
-
-            }
-
-        });
-
-    }
-
-    else {
-
-        report +=
-            '\nRecommended Actions:\n' +
-            '• Continue regular monitoring of mining operations.\n' +
-            '• Monitor weather conditions before major operations.\n' +
-            '• Follow preventive equipment maintenance schedules.\n';
-
-    }
-
-}
-
-
-
-// ==========================================
-// DISPLAY AI REPORT
-// ==========================================
-
-const reportElement =
-    document.getElementById('reportText');
-
-
-if (reportElement) {
-
-    reportElement.textContent = report;
-
-    reportElement.style.whiteSpace =
-        'pre-line';
-
-}
-
-
-        // ==========================================
-        // SUCCESS LOG
-        // ==========================================
-
-        log(
-            'AI analysis completed successfully!',
-            'text-emerald-400'
-        );
-
-
-        log(
-            'Risk factors and recommendations generated.',
-            'text-emerald-300'
-        );
-
+        `;
 
         lucide.createIcons();
 
 
+        try {
+
+            // =================================================
+            // STEP 1
+            // =================================================
+
+            logActivity(
+                "Sending mining region and weather data..."
+            );
+
+
+            const response =
+                await fetch(
+                    "/predict",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+
+                            state: state,
+
+                            district: district,
+
+                            weather_condition:
+                                weather.toLowerCase(),
+
+                            equipment_mode:
+                                equipmentMode
+
+                        })
+
+                    }
+                );
+
+
+            const result =
+                await response.json();
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    result.detail ||
+                    "Prediction request failed"
+                );
+
+            }
+
+
+            logActivity(
+                "Production risk prediction completed."
+            );
+
+
+            // =================================================
+            // STEP 2
+            // UPDATE PRODUCTION
+            // =================================================
+
+            const productionUsed =
+                result.production_used || {};
+
+
+            document.getElementById(
+                "productionValue"
+            ).textContent =
+                formatNumber(
+                    productionUsed.production_tonnes
+                );
+
+
+            document.getElementById(
+                "productionYear"
+            ).textContent =
+                productionUsed.year || "Latest";
+
+
+            document.getElementById(
+                "productionSource"
+            ).textContent =
+                productionUsed.source ||
+                "Historical data";
+
+
+            // =================================================
+            // STEP 3
+            // UPDATE SHORTFALL
+            // =================================================
+
+            const shortfallRisk =
+                result.production_shortfall_risk ||
+                "Unknown";
+
+
+            document.getElementById(
+                "shortfallRisk"
+            ).textContent =
+                shortfallRisk;
+
+
+            setRiskBadge(
+                shortfallRisk
+            );
+
+
+            // =================================================
+            // STEP 4
+            // UPDATE EQUIPMENT
+            // =================================================
+
+            const equipmentRisk =
+                Number(
+                    result.equipment_breakdown_risk_percent ||
+                    0
+                );
+
+
+            document.getElementById(
+                "equipmentRisk"
+            ).textContent =
+                equipmentRisk.toFixed(1) + "%";
+
+
+            if (
+                equipmentMode === "Auto"
+            ) {
+
+                document.getElementById(
+                    "equipmentSource"
+                ).textContent =
+                    "ML Prediction";
+
+            }
+
+            else {
+
+                document.getElementById(
+                    "equipmentSource"
+                ).textContent =
+                    "Simulation - " +
+                    equipmentMode;
+
+            }
+
+
+            // =================================================
+            // STEP 5
+            // WEATHER
+            // =================================================
+
+            const weatherValues =
+                result.weather_values || {};
+
+
+            const temperature =
+                Number(
+                    weatherValues.temperature_c || 0
+                );
+
+            const rainfall =
+                Number(
+                    weatherValues.rainfall_mm || 0
+                );
+
+            const humidity =
+                Number(
+                    weatherValues.humidity_percent || 0
+                );
+
+
+            document.getElementById(
+                "weatherValues"
+            ).textContent =
+                `${temperature.toFixed(1)}°C • ` +
+                `${rainfall.toFixed(1)} mm • ` +
+                `${humidity.toFixed(1)}% humidity`;
+
+
+            // =================================================
+            // STEP 6
+            // STRESS
+            // =================================================
+
+            const stress =
+                result.stress_analysis || {};
+
+
+            const productionStress =
+                Number(
+                    stress.production_stress || 0
+                );
+
+            const temperatureStress =
+                Number(
+                    stress.temperature_stress || 0
+                );
+
+            const rainfallStress =
+                Number(
+                    stress.rainfall_stress || 0
+                );
+
+            const humidityStress =
+                Number(
+                    stress.humidity_stress || 0
+                );
+
+            const weatherStress =
+                Number(
+                    stress.weather_stress || 0
+                );
+
+
+            document.getElementById(
+                "weatherStress"
+            ).textContent =
+                (weatherStress * 100)
+                    .toFixed(1) + "%";
+
+
+            updateStressBar(
+                "productionStressBar",
+                "productionStressText",
+                productionStress
+            );
+
+
+            updateStressBar(
+                "temperatureStressBar",
+                "temperatureStressText",
+                temperatureStress
+            );
+
+
+            updateStressBar(
+                "rainfallStressBar",
+                "rainfallStressText",
+                rainfallStress
+            );
+
+
+            updateStressBar(
+                "humidityStressBar",
+                "humidityStressText",
+                humidityStress
+            );
+
+
+            // =================================================
+            // STEP 7
+            // RECOMMENDATIONS
+            // =================================================
+
+            const recommendationData =
+                result.ai_recommendations;
+
+
+            displayRecommendations(
+                recommendationData
+            );
+
+
+            displayRiskFactors(
+                recommendationData
+                    ? recommendationData.top_risk_factors
+                    : []
+            );
+
+
+            // =================================================
+            // STEP 8
+            // GEMINI
+            // =================================================
+
+            displayGeminiRecommendation(
+                result.ai_recommendation
+            );
+
+
+            document.getElementById(
+                "recommendationSource"
+            ).textContent =
+                result.recommendation_source ||
+                "GeoMn Recommendation Engine";
+
+
+            logActivity(
+                "AI recommendation engine completed."
+            );
+
+
+            // =================================================
+            // STEP 9
+            // GENERATE SATELLITE MAP
+            // =================================================
+
+            logActivity(
+                "Preparing Sentinel-2 manganese map..."
+            );
+
+
+            /*
+             * Approximate ROI based on selected
+             * mining district.
+             *
+             * These coordinates can be replaced
+             * later by your exact district geometry.
+             */
+
+            const districtCoordinates = {
+
+                "Vizianagaram": [
+                    83.25,
+                    18.05,
+                    83.45,
+                    18.25
+                ],
+
+                "Ballari": [
+                    76.75,
+                    15.05,
+                    77.00,
+                    15.30
+                ],
+
+                "Chitradurga": [
+                    76.30,
+                    14.10,
+                    76.60,
+                    14.40
+                ],
+
+                "Davanagere": [
+                    75.80,
+                    14.30,
+                    76.10,
+                    14.60
+                ],
+
+                "Tumakuru": [
+                    77.00,
+                    13.15,
+                    77.30,
+                    13.50
+                ],
+
+                "Balaghat": [
+                    80.10,
+                    21.55,
+                    80.40,
+                    21.90
+                ],
+
+                "Chhindwara": [
+                    78.50,
+                    21.95,
+                    78.90,
+                    22.30
+                ],
+
+                "Jabalpur": [
+                    79.80,
+                    23.00,
+                    80.10,
+                    23.30
+                ],
+
+                "Jhabua": [
+                    74.45,
+                    22.60,
+                    74.80,
+                    22.90
+                ],
+
+                "Bhandara": [
+                    79.50,
+                    20.90,
+                    79.85,
+                    21.25
+                ],
+
+                "Nagpur": [
+                    78.90,
+                    20.90,
+                    79.30,
+                    21.30
+                ],
+
+                "Keonjhar": [
+                    85.30,
+                    21.50,
+                    85.65,
+                    21.85
+                ],
+
+                "Rayagada": [
+                    83.25,
+                    19.10,
+                    83.60,
+                    19.40
+                ],
+
+                "Sundargarh": [
+                    84.90,
+                    21.70,
+                    85.30,
+                    22.00
+                ],
+
+                "Banswara": [
+                    74.10,
+                    23.35,
+                    74.50,
+                    23.70
+                ],
+
+                "Adilabad": [
+                    78.40,
+                    19.40,
+                    78.75,
+                    19.75
+                ]
+
+            };
+
+
+            const coords =
+                districtCoordinates[district];
+
+
+            if (!coords) {
+
+                logActivity(
+                    "No predefined satellite ROI found. Skipping map generation."
+                );
+
+            }
+
+            else {
+
+                const [
+                    west,
+                    south,
+                    east,
+                    north
+                ] = coords;
+
+
+                const mapResponse =
+                    await fetch(
+                        "/generate-map",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body: JSON.stringify({
+
+                                west: west,
+
+                                south: south,
+
+                                east: east,
+
+                                north: north
+
+                            })
+
+                        }
+                    );
+
+
+                const mapResult =
+                    await mapResponse.json();
+
+
+                if (!mapResponse.ok) {
+
+                    throw new Error(
+                        mapResult.detail ||
+                        "Sentinel map generation failed"
+                    );
+
+                }
+
+
+                logActivity(
+                    "Sentinel-2 manganese analysis completed."
+                );
+
+
+                document.getElementById(
+                    "mapStatus"
+                ).textContent =
+                    "Sentinel-2 map generated successfully";
+
+
+                /*
+                 * Reload iframe so the newly generated
+                 * map is displayed.
+                 */
+
+                document.getElementById(
+                    "mapFrame"
+                ).src =
+                    "/map?time=" +
+                    Date.now();
+
+            }
+
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "GeoMn analysis error:",
+                error
+            );
+
+
+            logActivity(
+                "Backend Error: " +
+                error.message
+            );
+
+
+            alert(
+                "GeoMn Analysis Error:\n\n" +
+                error.message
+            );
+
+        }
+
+        finally {
+
+            runAnalysisBtn.disabled =
+                false;
+
+            runAnalysisBtn.classList.remove(
+                "opacity-60",
+                "cursor-not-allowed"
+            );
+
+            runAnalysisBtn.innerHTML =
+                originalButton;
+
+            lucide.createIcons();
+
+        }
+
     }
 
-    catch (error) {
 
-        console.error(error);
+    // ========================================================
+    // NUMBER FORMAT
+    // ========================================================
 
+    function formatNumber(value) {
 
-        log(
+        if (
+            value === null ||
+            value === undefined ||
+            value === ""
+        ) {
 
-            'Backend Error: ' +
-            error.message,
+            return "—";
 
-            'text-red-400'
+        }
 
+        const number =
+            Number(value);
+
+        if (Number.isNaN(number)) {
+
+            return "—";
+
+        }
+
+        return number.toLocaleString(
+            "en-IN",
+            {
+                maximumFractionDigits: 2
+            }
         );
 
     }
 
-});
-</script></div></body></html>
+
+    // ========================================================
+    // INITIALIZE
+    // ========================================================
+
+    loadStates();
+
+    checkBackend();
+
+</script>
+
+</body>
+</html>
