@@ -36,77 +36,109 @@
     <style>
         /* Liquid Glassmorphism Core */
         .glass-panel {
-            background: rgba(18, 17, 26, 0.70);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
-        }
+        background: rgba(18, 17, 26, 0.45);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
         .glass-panel-interactive {
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .glass-panel-interactive:hover {
-            border-color: rgba(168, 85, 247, 0.4);
-            box-shadow: 0 12px 40px 0 rgba(168, 85, 247, 0.2);
-            transform: translateY(-2px);
-        }
+    .glass-panel-interactive:hover {
+        border-color: rgba(168, 85, 247, 0.3);
+        box-shadow: 0 12px 40px 0 rgba(168, 85, 247, 0.15);
+        transform: translateY(-3px);
+        background: rgba(18, 17, 26, 0.6);
+    }
 
-        .glass-input {
-            background: rgba(0, 0, 0, 0.45);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            transition: all 0.3s ease;
-        }
-        #stateSelect,
+       .glass-input {
+        background-color: rgba(10, 10, 15, 0.6);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        appearance: none;
+        
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 1.25rem center;
+        background-size: 1.2rem;
+        padding-right: 2.75rem;
+        cursor: pointer;
+    }
+        .glass-input:hover:not(:disabled) {
+        border-color: rgba(168, 85, 247, 0.5);
+        box-shadow: 0 0 20px -5px rgba(168, 85, 247, 0.25);
+        background-color: rgba(168, 85, 247, 0.05);
+        transform: translateY(-2px);
+    }
+        .glass-input option {
+        background-color: #12111a;
+        color: #f8fafc;
+        padding: 12px;
+    }
+/* ==========================================
+   STATE & DISTRICT DROPDOWN
+   ========================================== */
+
+#stateSelect,
 #districtSelect {
-    background-color: rgba(10, 10, 15, 0.6);
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+
+    background-color: rgba(10, 10, 15, 0.85) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 1.25rem center !important;
+    background-size: 1.2rem !important;
+
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+
+    padding-right: 2.75rem !important;
+
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-
-    background-repeat: no-repeat;
-    background-position: right 1.25rem center;
-    background-size: 1.2rem;
-
-    padding-right: 2.75rem;
     cursor: pointer;
 }
 
 #stateSelect:hover:not(:disabled),
 #districtSelect:hover:not(:disabled) {
-    border-color: rgba(168, 85, 247, 0.5);
-    box-shadow: 0 0 20px -5px rgba(168, 85, 247, 0.25);
-    background-color: rgba(168, 85, 247, 0.05);
+    border-color: rgba(168, 85, 247, 0.5) !important;
+    background-color: rgba(168, 85, 247, 0.08) !important;
+    box-shadow: 0 0 20px -5px rgba(168, 85, 247, 0.35);
     transform: translateY(-2px);
 }
 
 #stateSelect:focus,
 #districtSelect:focus {
-    outline: none;
-    border-color: rgba(168, 85, 247, 0.8);
-    box-shadow: 0 0 20px -2px rgba(168, 85, 247, 0.4);
-    background-color: rgba(168, 85, 247, 0.1);
+    outline: none !important;
+    border-color: rgba(168, 85, 247, 0.8) !important;
+    background-color: rgba(168, 85, 247, 0.12) !important;
+    box-shadow: 0 0 20px -2px rgba(168, 85, 247, 0.5);
 }
 
+#stateSelect:disabled,
+#districtSelect:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+/* Dropdown options */
 #stateSelect option,
 #districtSelect option {
-    background: rgba(18, 17, 26, 0.95);
-    color: #f8fafc;
-    padding: 14px 16px;
+    background-color: #12111a !important;
+    color: #f8fafc !important;
 }
 
 #stateSelect option:checked,
 #districtSelect option:checked {
-    background: #3b214f;
-    color: #e9d5ff;
+    background-color: #3b214f !important;
+    color: #e9d5ff !important;
 }
         /* Modern Hover Effects for Dropdown Items */
         .dropdown-item {
@@ -183,11 +215,129 @@
         ::-webkit-scrollbar-track { background: rgba(10, 10, 15, 0.8); }
         ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.6); }
+#dashboard {
+    display: none;
+}
     </style>
 </head>
-<body class="min-h-screen text-slate-100 overflow-x-hidden">
+<body class="min-h-screen bg-[#0a0a0f] text-slate-100 overflow-x-hidden selection:bg-purple-500/30 selection:text-white">
+
+ <!-- AUTHENTICATION SCREEN -->
+<div id="authScreen" class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0a0a0f] px-4">
+
+    <div class="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl">
+
+        <!-- LOGO / TITLE -->
+        <div class="text-center mb-8">
+            <div class="text-3xl font-bold text-purple-400 mb-2">
+                GeoMn
+            </div>
+            <h1 class="text-2xl font-semibold text-white">
+                Welcome to GeoMn
+            </h1>
+            <p class="text-sm text-slate-400 mt-2">
+                Mining Risk & Production Intelligence Platform
+            </p>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <div id="loginForm">
+
+            <h2 class="text-xl font-semibold text-white mb-5">
+                Login
+            </h2>
+
+            <input
+                id="loginEmail"
+                type="email"
+                placeholder="Email"
+                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
+            >
+
+            <input
+                id="loginPassword"
+                type="password"
+                placeholder="Password"
+                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
+            >
+
+            <button
+                id="loginBtn"
+                class="w-full rounded-lg bg-purple-600 hover:bg-purple-500 px-4 py-3 font-semibold text-white transition"
+            >
+                Login
+            </button>
+
+            <p id="loginMessage" class="text-sm text-center mt-4"></p>
+
+            <p class="text-center text-sm text-slate-400 mt-6">
+                Don't have an account?
+                <button
+                    type="button"
+                    onclick="showRegister()"
+                    class="text-purple-400 hover:text-purple-300"
+                >
+                    Register
+                </button>
+            </p>
+
+        </div>
+
+        <!-- REGISTER FORM -->
+        <div id="registerForm" class="hidden">
+
+            <h2 class="text-xl font-semibold text-white mb-5">
+                Create Account
+            </h2>
+
+            <input
+                id="registerName"
+                type="text"
+                placeholder="Full Name"
+                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
+            >
+
+            <input
+                id="registerEmail"
+                type="email"
+                placeholder="Email"
+                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
+            >
+
+            <input
+                id="registerPassword"
+                type="password"
+                placeholder="Password"
+                class="w-full mb-4 rounded-lg bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-purple-500"
+            >
+
+            <button
+                id="registerBtn"
+                class="w-full rounded-lg bg-purple-600 hover:bg-purple-500 px-4 py-3 font-semibold text-white transition"
+            >
+                Create Account
+            </button>
+
+            <p id="registerMessage" class="text-sm text-center mt-4"></p>
+
+            <p class="text-center text-sm text-slate-400 mt-6">
+                Already have an account?
+                <button
+                    type="button"
+                    onclick="showLogin()"
+                    class="text-purple-400 hover:text-purple-300"
+                >
+                    Login
+                </button>
+            </p>
+
+        </div>
+
+    </div>
+</div>
+<div id="dashboard">
 <div class="bg-glow-purple top-[-100px] left-[-100px]"></div><div class="bg-glow-blue bottom-[-100px] right-[-100px]"></div>
-<header class="sticky top-0 z-[100] glass-panel border-b border-white/10 px-6 py-3.5 flex items-center justify-between">
+<header class="sticky top-0 z-[100] glass-panel border-b border-white/10 px-6 py-3.5 flex items-center justify-between shadow-2xl shadow-black/50">
  <div class="flex items-center gap-3"><div class="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400"><i data-lucide="satellite" class="w-6 h-6 animate-pulse-slow"></i></div><div><div class="flex items-center gap-2"><h1 class="text-xl font-black tracking-wider bg-gradient-to-r from-white via-purple-200 to-purple-400 bg-clip-text text-transparent">GeoMn Mining Intelligence</h1><span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold tracking-wide uppercase">AI / ML</span></div><p class="text-xs text-slate-400">Space, Weather & AI-Powered Manganese Production Risk Platform</p></div></div>
  <div class="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> AI Systems Ready</div>
 </header>
@@ -800,4 +950,4 @@ if (reportElement) {
     }
 
 });
-</script></body></html>
+</script></div></body></html>
